@@ -1,3 +1,4 @@
+# RTS -> hard select, cross attention q: local, k,v: global
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

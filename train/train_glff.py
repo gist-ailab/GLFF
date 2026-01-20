@@ -7,7 +7,7 @@ from datetime import timedelta
 from tqdm import tqdm
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 import torch
 import torch.nn as nn
 from torch.cuda.amp.autocast_mode import autocast
@@ -24,12 +24,13 @@ from util.metric_seg import validation_accuracy
 import random
 import rein
 import adaptformer
-# from net_hard import GlobalLocalLesionClassifier
-from net_soft import GlobalLocalLesionClassifier
+from net_hard import GlobalLocalLesionClassifier
+# from net_soft import GlobalLocalLesionClassifier
 
 import dino_variant
 from sklearn.metrics import f1_score
-from data.ham10000_seg import get_dataloaders_with_mask
+# from data.ham10000_seg import get_dataloaders_with_mask
+from data.ham10000_seg_trainset_split import get_teacher_dataloaders_train_only
 
 def rein_forward(model, inputs):
     output = model.forward_features(inputs)[:, 0, :]
@@ -90,7 +91,7 @@ def train():
     max_epoch = int(args.epoch)
     # num_workers = int(config['num_workers'])
     
-    train_loader, valid_loader, test_loader = get_dataloaders_with_mask(
+    train_loader, test_loader = get_teacher_dataloaders_train_only(
         data_dir=data_path,
         batch_size=batch_size,
         num_workers=4,

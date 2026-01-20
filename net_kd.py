@@ -166,7 +166,7 @@ class GlobalLocalLesionClassifier(nn.Module):
         tau: float = 0.5,
         min_tokens: int = 4,
         num_heads: int = 8,
-        fusion: str = "concat",
+        fusion: str = "gate",
         hidden_dim: int = 512,
         dropout: float = 0.0,
         use_global_cls: bool = False,  # False: meanpool patch tokens, True: use CLS for global vector
@@ -231,3 +231,74 @@ class GlobalLocalLesionClassifier(nn.Module):
 
         # (선택) 디버깅/시각화를 위해 중간값을 함께 반환하고 싶다면 dict로 반환하도록 변경 가능
         return logits
+    
+    def forward_teacher(self, image, mask):
+        return self.forward(image, mask)
+
+
+class StudentHeadWrapper(nn.Module):
+    """
+    Wraps teacher FusionHead so that student can call it
+    with only f_global.
+    """
+    def __init__(self, fusion_head, mode="global_only"):
+        super().__init__()
+        self.fusion_head = fusion_head
+        self.mode = mode  # "global_only" | "zero_local"
+
+    def forward(self, f_global):
+        if self.mode == "global_only":
+            # f_local을 f_global로 복사 (가장 안정적)
+            f_local = f_global
+        elif self.mode == "zero_local":
+            f_local = torch.zeros_like(f_global)
+        else:
+            raise ValueError(self.mode)
+
+        return self.fusion_head(f_global, f_local)
+
+
+class GlobalOnlyStudent(nn.Module):
+    def __init__(
+        self,
+        global_encoder,
+        teacher_head,
+        use_global_cls: bool = False,
+        head_mode: str = "global_only"
+    ):
+        super().__init__()
+        self.global_encoder = global_encoder
+        self.use_global_cls = use_global_cls
+
+        # ⭐ teacher head를 wrapper로 감싸서 사용
+        self.head = StudentHeadWrapper(
+            fusion_head=teacher_head,
+            mode=head_mode
+        )
+
+    def forward(self, image, mask=None):
+        # mask는 무시 (interface alignment용)
+        g_tokens = self.global_encoder.forward_features(image)
+        g_cls = g_tokens[:, 0, :]
+        g_patch = g_tokens[:, 1:, :]
+
+        if self.use_global_cls:
+            f_global = g_cls
+        else:
+            f_global = g_patch.mean(dim=1)
+
+        logits = self.head(f_global)
+        return logits
+
+
+
+
+def kd_loss(student_logits, teacher_logits, T=4.0):
+    """
+    KL divergence KD loss
+    """
+    return F.kl_div(
+        F.log_softmax(student_logits / T, dim=1),
+        F.softmax(teacher_logits / T, dim=1),
+        reduction="batchmean"
+    ) * (T * T)

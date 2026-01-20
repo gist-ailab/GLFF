@@ -6,14 +6,18 @@ import time
 from datetime import timedelta
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3"
 import torch
 import torch.nn as nn
 from torch.cuda.amp.autocast_mode import autocast
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.nn import functional as F
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data.distributed import DistributedSampler
 
 import argparse
+from tqdm import tqdm
 import timm
 import numpy as np
 import matplotlib.pyplot as plt
@@ -25,26 +29,26 @@ import adaptformer
 
 import dino_variant
 from sklearn.metrics import f1_score
-from data import dataloader
+# from data import dataloader
+from data.ham10000_train_split import get_cls_dataloaders_train_only
+
+
+def ddp_setup():
+    # torchrun이 환경변수로 설정해줌
+    dist.init_process_group(backend="nccl")
+    local_rank = int(os.environ["LOCAL_RANK"])
+    torch.cuda.set_device(local_rank)
+    return local_rank
+
+def is_main_process():
+    return (not dist.is_initialized()) or dist.get_rank() == 0
+
 
 def rein_forward(model, inputs):
-    output = model.forward_features(inputs)[:, 0, :]
-    output = model.linear(output)
-    output = torch.softmax(output, dim=1)
-    return output
-
-def lora_forward(model, inputs):
-    with autocast(enabled=True):
-        features = model.forward_features(inputs)
-        output = model.linear(features)
-        output = torch.softmax(output, dim=1)
-    return output
-
-def adaptformer_forward(model, inputs):
-    f = model.forward_features(inputs)
-    outputs = model.linear(f)
-    outputs = torch.softmax(outputs, dim=1) 
-    return outputs
+    backbone = model.module if isinstance(model, torch.nn.DataParallel) else model
+    feats = backbone.forward_features(inputs)[:, 0, :]
+    logits = backbone.linear(feats)
+    return logits
 
 
 def seed_for_init(seed=42):
@@ -67,7 +71,7 @@ def train():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', '-d', type=str, default='cifar100')
     parser.add_argument('--adapter', '-a', type=str, default='rein')
-    parser.add_argument('--gpu', '-g', default = '0', type=str)
+    # parser.add_argument('--gpu', '-g', default = '0', type=str)
     parser.add_argument('--netsize', default='s', type=str)
     parser.add_argument('--save_path', '-s', type=str)
     parser.add_argument('--epoch', '-e', type=str, default=None)
@@ -75,15 +79,41 @@ def train():
     
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     config = read_conf('conf/data/'+args.data+'.yaml')
-    device = 'cuda:'+args.gpu
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    num_gpus = torch.cuda.device_count()
     save_path = os.path.join(config['save_path'], args.save_path)
     data_path = config['data_root']
     batch_size = int(config['batch_size'])
     max_epoch = int(args.epoch)
     # num_workers = int(config['num_workers'])
     
-    train_loader, valid_loader, test_loader = dataloader.setup_data_loaders(args, data_path, batch_size=batch_size)    
-    
+    # train_loader, valid_loader, test_loader = dataloader.setup_data_loaders(args, data_path, batch_size=batch_size)  
+    train_loader, test_loader = get_cls_dataloaders_train_only(
+        data_dir=data_path,
+        batch_size=128,   
+        num_workers=4,
+        random_seed=42
+    )
+
+    train_sampler = DistributedSampler(train_loader.dataset, shuffle=True)
+    val_sampler   = DistributedSampler(test_loader.dataset, shuffle=False)
+
+    train_loader = torch.utils.data.DataLoader(
+        train_loader.dataset,
+        batch_size=128,
+        sampler=train_sampler,
+        num_workers=4,
+        pin_memory=True
+    )
+
+    test_loader = torch.utils.data.DataLoader(
+        test_loader.dataset,
+        batch_size=128,
+        sampler=val_sampler,
+        num_workers=4,
+        pin_memory=True
+    )
+
     os.makedirs(save_path, exist_ok=True)
         
     if args.netsize == 's':
@@ -98,71 +128,23 @@ def train():
     
     model = torch.hub.load('facebookresearch/dinov2', model_load)
     dino_state_dict = model.state_dict()
-        
-    if args.adapter == 'rein':
-        model = rein.ReinsDinoVisionTransformer(
-            **variant
-        )
-        model.load_state_dict(dino_state_dict, strict=False)
-        model.linear = nn.Linear(variant['embed_dim'], config['num_classes'])
-    elif args.adapter == 'lora':
-        new_state_dict = dict()
 
-        for k in dino_state_dict.keys():
-            new_k = k.replace("attn.qkv", "attn.qkv.qkv")
-            new_state_dict[new_k] = dino_state_dict[k]
-            
-        model = rein.LoRADinoVisionTransformer(model)
-        model.dino.load_state_dict(new_state_dict, strict=False)
-        model.linear = nn.Linear(variant['embed_dim'], config['num_classes'])
-    elif args.adapter == 'adaptformer':
-        tuning_config = argparse.Namespace()
-        # Adaptformer
-        tuning_config.ffn_adapt = True
-        tuning_config.ffn_num = 64
-        tuning_config.ffn_option="parallel"
-        tuning_config.ffn_adapter_layernorm_option="none"
-        tuning_config.ffn_adapter_init_option="lora"
-        tuning_config.ffn_adapter_scalar="0.1"
-        tuning_config.d_model=384 # base -> 768
-        # VPT
-        tuning_config.vpt_on = False
-        tuning_config.vpt_num = 1
-
-        tuning_config.fulltune = False
-            
-        new_state_dict = dict()
-        for k in dino_state_dict.keys():
-            new_k = k.replace("mlp.", "")
-            new_state_dict[new_k] = dino_state_dict[k]
-        extra_tokens = dino_state_dict['pos_embed'][:, :1]
-        src_weight = dino_state_dict['pos_embed'][:, 1:]
-        src_weight = src_weight.reshape(1, 37, 37, 384).permute(0, 3, 1, 2)
-        # src_weight = src_weight.reshape(1, 37, 37, 768).permute(0, 3, 1, 2) ＃ for base model
-
-        dst_weight = F.interpolate(
-            src_weight.float(), size=16, align_corners=False, mode='bilinear') # base model -> 16
-        dst_weight = torch.flatten(dst_weight, 2).transpose(1, 2)
-        dst_weight = dst_weight.to(src_weight.dtype)
-        new_state_dict['pos_embed'] = torch.cat((extra_tokens, dst_weight), dim=1)
-        model = adaptformer.VisionTransformer(patch_size=14, embed_dim= 384, tuning_config = tuning_config, use_dinov2=True)
-        model.load_state_dict(new_state_dict, strict=False) 
-        model.linear = nn.Linear(variant['embed_dim'], config['num_classes'])
+    model = rein.ReinsDinoVisionTransformer(
+        **variant
+    )
+    model.load_state_dict(dino_state_dict, strict=False)
+    model.linear = nn.Linear(variant['embed_dim'], config['num_classes'])
+    set_requires_grad(model, ['reins', 'linear'])
     
-    model.to(device)
+    model = model.to(device)
+    if torch.cuda.device_count() > 1:
+        model = torch.nn.DataParallel(model)
     
-    if args.adapter == 'adaptformer' or args.adapter == 'lora':
-        set_requires_grad(model, ['adapt', 'linear', 'embeddings'])
-    elif args.adapter == 'rein':
-        set_requires_grad(model, ['reins', 'linear'])
-    
-    
-    print(model)
+    # print(model)
     
     print("Max epoch: ", max_epoch)
     
-    criterion = focal_loss.FocalLoss(gamma=3) 
-    # criterion = torch.nn.CrossEntropyLoss()
+    criterion = torch.nn.CrossEntropyLoss()
     print("Criterion: ", criterion)
     model.eval()
 
@@ -172,7 +154,12 @@ def train():
     # optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay = 1e-6)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, lr_decay)
  
-    saver = timm.utils.CheckpointSaver(model, optimizer, checkpoint_dir= save_path, max_history = 1) 
+    saver = timm.utils.CheckpointSaver(
+        model.module if isinstance(model, torch.nn.DataParallel) else model,
+        optimizer,
+        checkpoint_dir=save_path,
+        max_history=1
+    )
 
     if args.adapter == 'lora':
         scalar = GradScaler()
@@ -190,8 +177,9 @@ def train():
         total_loss = 0
         total = 0
         correct = 0
-        for batch_idx, (inputs, targets) in enumerate(train_loader):
-            inputs, targets = inputs.to(device), targets.to(device)           
+        pbar = tqdm(train_loader, desc=f"Epoch [{epoch+1}/{max_epoch}]", leave=False)
+        for batch_idx, (inputs, targets) in enumerate(pbar):
+            inputs, targets = inputs.to(device), targets.to(device)    
             
             if targets.ndim > 1 and targets.size(1) > 1:
                 targets = torch.argmax(targets, dim=1)
@@ -201,40 +189,24 @@ def train():
             
             optimizer.zero_grad()
             
-            if args.adapter == 'rein':
-                outputs = rein_forward(model, inputs)
-                loss = criterion(outputs, targets)
-                loss.backward()
-                optimizer.step()
-            elif args.adapter == 'adaptformer':
-                f = model.forward_features(inputs)
-                outputs = model.linear(f)
-                loss = criterion(outputs, targets)
-                loss.backward()
-                optimizer.step()
-            
-            if args.adapter == 'lora':
-                with autocast(enabled=True):
-                    features = model.forward_features(inputs)
-                    outputs = model.linear(features)
-                    loss = criterion(outputs, targets)
-                scalar.scale(loss).backward()
-                scalar.step(optimizer)
-                scalar.update()
-                
-            total_loss += loss
-            total += targets.size(0)
-            
-            # _, predicted = outputs[:len(targets)].max(1)        
-            _, predicted = outputs.max(1)    
-            correct += predicted.eq(targets).sum().item()            
-            print('\r', batch_idx, len(train_loader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                        % (total_loss/(batch_idx+1), 100.*correct/total, correct, total), end = '')
-            
-            train_accuracy = correct/total
+            outputs = rein_forward(model, inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
 
-                  
-        train_avg_loss = total_loss/len(train_loader)
+            total_loss += loss.item()
+            total += targets.size(0)
+            _, predicted = outputs.max(1)
+            correct += predicted.eq(targets).sum().item()
+
+            train_accuracy = correct / total
+            avg_loss = total_loss / (batch_idx + 1)
+
+            pbar.set_postfix({
+                "loss": f"{avg_loss:.4f}",
+                "acc":  f"{train_accuracy*100:.2f}%"
+            })
+                        
         epoch_duration = time.time() - epoch_start_time
         epoch_time = str(timedelta(seconds=epoch_duration))
         remaining_time = (max_epoch - (epoch + 1)) * epoch_duration
@@ -250,9 +222,9 @@ def train():
         correct = 0
 
         if args.adapter == 'rein' or args.adapter == 'adaptformer':
-            valid_accuracy = validation_accuracy(model, valid_loader, device, mode=args.adapter)
+            valid_accuracy = validation_accuracy(model, test_loader, device, mode=args.adapter)
         elif args.adapter == 'lora':
-            valid_accuracy = validation_accuracy_lora(model, valid_loader, device)
+            valid_accuracy = validation_accuracy_lora(model, test_loader, device)
             
         train_accuracies.append(train_accuracy)
         val_accuracies.append(valid_accuracy)
@@ -262,7 +234,7 @@ def train():
         scheduler.step()
 
         saver.save_checkpoint(epoch, metric = valid_accuracy)
-        print(f'Epoch {epoch + 1}/{max_epoch} | Loss: {train_avg_loss:.4f} | '
+        print(f'Epoch {epoch + 1}/{max_epoch} | Loss: {avg_loss:.4f} | '
             f'Train Acc: {train_accuracy:.4f} | Valid Acc: {valid_accuracy:.4f} | '
             f'LR: {optimizer.param_groups[0]["lr"]:.6f}')
         print(scheduler.get_last_lr())
@@ -270,26 +242,6 @@ def train():
     total_duration = time.time() - start_time
     totoal_time = str(timedelta(seconds=total_duration))
     print(f"Total training time: {totoal_time}")
-
-    with open(os.path.join(save_path, 'avgacc.txt'), 'w') as f:
-        f.write(str(avg_accuracy/10))
-        
-    epochs = list(range(1, max_epoch + 1))
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(epochs, train_accuracies, label='Train Accuracy', marker='o')
-    plt.plot(epochs, val_accuracies, label='Validation Accuracy', marker='s')
-    plt.axvline(x=np.argmax(val_accuracies)+1, linestyle='--', color='red', label=f'Best Val Epoch: {np.argmax(val_accuracies)+1}')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.title('Training vs Validation Accuracy')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-
-    plot_path = os.path.join(save_path, 'accuracy_plot.png')
-    plt.savefig(plot_path)
-    print(f"\n📈 Accuracy plot saved to: {plot_path}")
     
     if args.adapter == 'rein' or args.adapter == 'adaptformer':
         final_acc = validation_accuracy(model, test_loader, device, mode=args.adapter)

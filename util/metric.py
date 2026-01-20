@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from util.temperature_scaling import ModelWithTemperature
 from util.bin_temperature_scaling import ModelWithBinwiseTemperature
 
+def unwrap_model(model):
+    return model.module if isinstance(model, torch.nn.DataParallel) else model
 
 def validation_accuracy_lora(model, loader, device):
     total = 0
@@ -45,15 +47,17 @@ def validation_accuracy(model, loader, device, mode='rein'):
         return outputs
     
     def rein(model, inputs):
+        backbone = unwrap_model(model)
+
         if isinstance(model, ModelWithTemperature):
-            f = model.model.forward_features(inputs) 
+            f = backbone.model.forward_features(inputs)
             f = f[:, 0, :]
-            outputs = model.model.linear(f) 
+            outputs = backbone.model.linear(f)
         else:
-            f = model.forward_features(inputs)  
-            f = f[:, 0, :]  
-            outputs = model.linear(f)  
-        
+            f = backbone.forward_features(inputs)
+            f = f[:, 0, :]
+            outputs = backbone.linear(f)
+
         return outputs
     
     def adaptformer(model, inputs):
