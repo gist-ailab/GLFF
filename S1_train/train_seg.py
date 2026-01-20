@@ -426,10 +426,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_dir", type=str, default="/SSDe/youmin_park/dataset/ham10000")
     parser.add_argument("--sam_checkpoint", type=str, default="./pretrained/sam2.1_hiera_large.pt")
-    parser.add_argument("--save_dir", type=str, default="./save/ham10000_sam")
+    parser.add_argument("--save_dir", type=str, default="./save/ham10000_sam_final")
 
-    parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_workers", type=int, default=8)
 
     parser.add_argument("--split_ratio", type=float, default=0.9)
@@ -459,23 +459,11 @@ def main():
         log(f"data_dir={args.data_dir}")
         log(f"save_dir={args.save_dir}")
 
-    # train_loader, val_loader = make_data_loaders(
-    #     data_dir=args.data_dir,
-    #     batch_size=args.batch_size,
-    #     num_workers=args.num_workers,
-    #     split_ratio=args.split_ratio,
-    #     random_seed=args.seed,
-    #     img_size=args.img_size,
-    #     crop_size=args.crop_size,
-    #     is_ddp=is_ddp,
-    #     rank=rank,
-    #     world_size=world_size,
-    # )
-
-    train_loader = make_train_loader(
+    train_loader, val_loader = make_data_loaders(
         data_dir=args.data_dir,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
+        split_ratio=args.split_ratio,
         random_seed=args.seed,
         img_size=args.img_size,
         crop_size=args.crop_size,
@@ -483,6 +471,18 @@ def main():
         rank=rank,
         world_size=world_size,
     )
+
+    # train_loader = make_train_loader(
+    #     data_dir=args.data_dir,
+    #     batch_size=args.batch_size,
+    #     num_workers=args.num_workers,
+    #     random_seed=args.seed,
+    #     img_size=args.img_size,
+    #     crop_size=args.crop_size,
+    #     is_ddp=is_ddp,
+    #     rank=rank,
+    #     world_size=world_size,
+    # )
 
 
     encoder_mode = {
@@ -538,31 +538,31 @@ def main():
         train_loss = train_one_epoch(train_loader, model, device, is_ddp, rank)
         lr_scheduler.step()
 
-        # # 매 epoch 검증
-        # val_m1, val_m2, m1_name, m2_name = validate_one_epoch(
-        #     val_loader, model, device, is_ddp, rank, eval_type=args.eval_type
-        # )
+        # 매 epoch 검증
+        val_m1, val_m2, m1_name, m2_name = validate_one_epoch(
+            val_loader, model, device, is_ddp, rank, eval_type=args.eval_type
+        )
 
-        # if is_main_process(rank):
-        #     writer.add_scalar("lr", optimizer.param_groups[0]["lr"], epoch)
-        #     writer.add_scalar("loss/train", train_loss, epoch)
-        #     writer.add_scalar(f"{m1_name}/val", val_m1, epoch)
-        #     writer.add_scalar(f"{m2_name}/val", val_m2, epoch)
+        if is_main_process(rank):
+            writer.add_scalar("lr", optimizer.param_groups[0]["lr"], epoch)
+            writer.add_scalar("loss/train", train_loss, epoch)
+            writer.add_scalar(f"{m1_name}/val", val_m1, epoch)
+            writer.add_scalar(f"{m2_name}/val", val_m2, epoch)
 
-            # log(f"epoch {epoch}/{args.epochs} | train_loss={train_loss:.4f} | val_{m1_name}={val_m1:.4f} | val_{m2_name}={val_m2:.4f}")
+            log(f"epoch {epoch}/{args.epochs} | train_loss={train_loss:.4f} | val_{m1_name}={val_m1:.4f} | val_{m2_name}={val_m2:.4f}")
             
-            # save_ckpt(model, args.save_dir, "last")
+            save_ckpt(model, args.save_dir, "last")
 
-            # # 기본: dice가 best 기준
-            # if val_m1 > best_metric:
-            #     best_metric = val_m1
-            #     save_ckpt(model, args.save_dir, "best")
+            # 기본: dice가 best 기준
+            if val_m1 > best_metric:
+                best_metric = val_m1
+                save_ckpt(model, args.save_dir, "best")
 
-            # writer.flush()
+            writer.flush()
             
-        log(f"epoch {epoch}/{args.epochs} | train_loss={train_loss:.4f}")
+        # log(f"epoch {epoch}/{args.epochs} | train_loss={train_loss:.4f}")
 
-        save_ckpt(model, args.save_dir, "last")
+        # save_ckpt(model, args.save_dir, "last")
 
         if is_ddp:
             dist.barrier()
