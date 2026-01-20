@@ -1,0 +1,74 @@
+# configs/ham10000_sam3adapter.yaml
+seed: 42
+
+# -------------------------
+# Dataset (HAM10000 Seg)
+# -------------------------
+train_dataset:
+  batch_size: 8
+  dataset:
+    name: ham10000_seg
+    args:
+      csv_file: /path/to/ham10000/ISIC2018_Task3_Training_GroundTruth.csv
+      image_dir: /path/to/ham10000/train
+      mask_dir:  /path/to/ham10000/ham10000_mask
+      split: train
+      split_ratio: 0.9
+      random_seed: 42
+      img_size: 256
+      crop_size: 224
+  wrapper:
+    name: identity
+    args: {}
+
+val_dataset:
+  batch_size: 8
+  dataset:
+    name: ham10000_seg
+    args:
+      csv_file: /path/to/ham10000/ISIC2018_Task3_Training_GroundTruth.csv
+      image_dir: /path/to/ham10000/train
+      mask_dir:  /path/to/ham10000/ham10000_mask
+      split: val
+      split_ratio: 0.9
+      random_seed: 42
+      img_size: 256
+      crop_size: 224
+  wrapper:
+    name: identity
+    args: {}
+
+# -------------------------
+# Training
+# -------------------------
+epoch_max: 30
+epoch_val: 1         
+lr_min: 1.0e-6
+
+optimizer:
+  name: adamw
+  args:
+    lr: 2.0e-4
+    weight_decay: 0.01
+
+# eval_type: kvasir -> dice/iou 계산 (utils.calc_kvasir 필요)
+eval_type: kvasir
+
+# -------------------------
+# Model
+# -------------------------
+model:
+  name: sam3_adapter        
+  args:
+    # 여기도 repo 구현에 맞게 필요한 args를 넣으세요.
+    # 예: model_type, adapter settings, decoder settings 등
+    # model_type: "vit_l"
+    # prompt_dim: 256
+
+# -------------------------
+# Checkpoint (SAM3 or SAM2 backbone weights)
+# -------------------------
+sam_checkpoint: /path/to/pretrained_sam3_or_sam2_adapter_checkpoint.pth
+
+# resume: null
+resume: null
