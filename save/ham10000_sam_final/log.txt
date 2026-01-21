@@ -1,6 +1,0 @@
-DDP=False rank=0 local_rank=0 world_size=1
-data_dir=/SSDd/youmin_park/dataset/ham10000
-save_dir=./save/ham10000_sam_final
-DDP=False rank=0 local_rank=0 world_size=1
-data_dir=/SSDd/youmin_park/dataset/ham10000
-save_dir=./save/ham10000_sam_final

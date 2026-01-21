@@ -29,8 +29,8 @@ from net_hard import GlobalLocalLesionClassifier
 
 import dino_variant
 from sklearn.metrics import f1_score
-# from data.ham10000_seg import get_dataloaders_with_mask
-from data.ham10000_seg_trainset_split import get_dataloaders_train_only
+from data.ham10000_seg import get_dataloaders_with_mask
+# from data.ham10000_seg_trainset_split import get_dataloaders_train_only
 
 def rein_forward(model, inputs):
     output = model.forward_features(inputs)[:, 0, :]
@@ -74,7 +74,7 @@ def train():
     parser.add_argument('--adapter', '-a', type=str, default='rein')
     # parser.add_argument('--gpu', '-g', default = '0', type=str)
     parser.add_argument('--netsize', default='s', type=str)
-    parser.add_argument('--save_path', '-s', type=str, default='glff_ham10000_rein_s_ca2')
+    parser.add_argument('--save_path', '-s', type=str, default='glff_ham10000_rein_s_hard_epoch50_clspatch_512')
     parser.add_argument('--epoch', '-e', type=str, default=50)
     args = parser.parse_args()
     
@@ -92,7 +92,7 @@ def train():
     max_epoch = int(args.epoch)
     # num_workers = int(config['num_workers'])
     
-    train_loader, test_loader = get_dataloaders_train_only(
+    train_loader, _, test_loader = get_dataloaders_with_mask(
         data_dir=data_path,
         batch_size=batch_size,
         num_workers=4,
@@ -127,14 +127,14 @@ def train():
         embed_dim=variant['embed_dim'],
         num_classes=config['num_classes'],
         patch_size=variant['patch_size'],   
-        tau=0.001,
+        tau=0.000,
         min_tokens=4,
         num_heads=8,
-        cross_attn_layers=2,
+        cross_attn_layers=1,
         fusion="concat",        # "concat" or "gate"
-        hidden_dim=512,
+        hidden_dim=512,   # 256?
         # dropout=0.2,
-        use_global_cls=False
+        use_global_cls=True
     )
         
     set_requires_grad(model, ['reins', 'head', 'cross_attn', 'global_encoder', 'local_encoder'])    

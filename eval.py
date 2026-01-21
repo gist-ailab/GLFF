@@ -1,184 +1,134 @@
-# inference.py
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
 import sys
-# sys.path.append("/SSDd/youmin_park/GLFF/")
-import torch
-from tqdm import tqdm
-import importlib
+sys.path.append("/SSDe/youmin_park/GLFF/")
+
 import argparse
+import torch
+import torch.nn as nn
+import numpy as np
+
+from util import read_conf, validation_accuracy, validation_accuracy_lora
+from data.ham10000 import get_dataloaders
 
 import rein
+import adaptformer
 import dino_variant
-from util import read_conf
-from net_hard import GlobalLocalLesionClassifier
-# from data.ham10000_seg import get_dataloaders_with_mask
-from data.ham10000_seg_trainset_split import get_dataloaders_train_only
-import S1_models 
 
-class SegmentationInferenceWrapper(torch.nn.Module):
-    def __init__(self, sam_model, threshold=0.5, use_soft=True):
-        super().__init__()
-        self.sam_model = sam_model
-        self.threshold = threshold
-        self.use_soft = use_soft
+# -------------------------------------------------
+# Utils
+# -------------------------------------------------
+def seed_for_init(seed=42):
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
 
-    @torch.no_grad()
-    def forward(self, image):
-        """
-        image: (B,3,224,224)
-        return: (B,1,224,224)
-        """
-        masks = self.sam_model.infer(image)   
+def rein_forward(model, inputs):
+    backbone = model.module if isinstance(model, torch.nn.DataParallel) else model
+    feats = backbone.forward_features(inputs)[:, 0, :]
+    logits = backbone.linear(feats)
+    return logits
 
-        prob = torch.sigmoid(masks)
-
-        if self.use_soft:
-            return prob
-        else:
-            return (prob > self.threshold).float()
-
-
-def load_sam2adapter_checkpoint(
-    ckpt_path: str,
-    device: torch.device,
-    inp_size: int = 224,
-    loss: str = "iou",
-):
-
-    encoder_mode = {
-        "name": "sam",
-        "embed_dim": 768,
-        "patch_size": 16,
-        "depth": 12,
-        "num_heads": 12,
-        "mlp_ratio": 4,
-        "out_chans": 256,
-        "qkv_bias": True,
-        "use_rel_pos": True,
-        "window_size": 14,
-        "global_attn_indexes": [2, 5, 8, 11],
-        "prompt_embed_dim": 256,
-    }
-
-    model_spec = {
-        "name": "sam",
-        "args": {
-            "inp_size": inp_size,
-            "encoder_mode": encoder_mode,
-            "loss": loss,
-        }
-    }
-
-    model = S1_models.make(model_spec)
-    model.to(device)
-    model.eval()
-
-    sd = torch.load(ckpt_path, map_location="cpu")
-    sd = sd.get("model", sd.get("state_dict", sd))
-    sd = {k.replace("module.", ""): v for k, v in sd.items()}
-
-    model.load_state_dict(sd, strict=False)
-
-    for p in model.parameters():
-        p.requires_grad_(False)
-
-    return model
-
-
-
-def load_cls_model(args, ckpt_path, device):
-    # checkpoint = torch.load(ckpt_path, map_location="cpu")
-    checkpoint = torch.load(ckpt_path, map_location=device)['state_dict']
-    # print(checkpoint.keys())
-
-    config = read_conf('conf/data/'+args.data+'.yaml')
-    variant = dino_variant._small_variant
-    hub_model = torch.hub.load('facebookresearch/dinov2', dino_variant._small_dino)
-    dino_state_dict = hub_model.state_dict()
-
-    # global/local encoder
-    global_encoder = rein.ReinsDinoVisionTransformer(**variant)
-    global_encoder.load_state_dict(dino_state_dict, strict=False)
-
-    local_encoder = rein.ReinsDinoVisionTransformer(**variant)
-    local_encoder.load_state_dict(dino_state_dict, strict=False)
-
-    model = GlobalLocalLesionClassifier(
-        global_encoder=global_encoder,
-        local_encoder=local_encoder,
-        embed_dim=variant["embed_dim"],
-        num_classes=config["num_classes"],
-        patch_size=variant["patch_size"],
-        tau=0.001,
-        min_tokens=4,
-        num_heads=8,
-        fusion="concat",        # or "gate"
-        hidden_dim=512,
-        # dropout=0.2,
-        use_global_cls=False
-    )
-
-    model.load_state_dict(checkpoint)
-    model.to(device)
-    model.eval()
-    return model
-
-
-@torch.no_grad()
-def run_inference(seg_model, cls_model, loader, device):
-    preds, labels = [], []
-
-    for images, _, gt in tqdm(loader, desc="Inference", ncols=100):
-        images = images.to(device)
-        gt = gt.to(device)
-
-        masks = seg_model(images)              # ← SAM 추론
-        logits = cls_model(images, masks)      # ← 기존 모델 그대로
-
-        preds.append(logits.argmax(1).cpu())
-        labels.append(gt.cpu())
-
-    preds = torch.cat(preds)
-    labels = torch.cat(labels)
-    acc = (preds == labels).float().mean()
-
-    return acc
-
-
+# -------------------------------------------------
+# Main Evaluation
+# -------------------------------------------------
 def main():
+    seed_for_init(42)
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data', '-d', type=str, default='ham10000')
+    parser.add_argument('--data', type=str, default='ham10000')
+    parser.add_argument('--adapter', type=str, default='rein',
+                        choices=['rein', 'adaptformer', 'lora'])
+    parser.add_argument('--netsize', type=str, default='s',
+                        choices=['s', 'b', 'l'])
+    parser.add_argument('--ckpt', type=str, default='S0_save/only_rgb_50/last.pth.tar')
+    parser.add_argument('--batch_size', type=int, default=128)
     args = parser.parse_args()
-    
-    device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # SAM2Adapter model
-    sam_model = load_sam2adapter_checkpoint("S1_save/ham10000_sam_final/model_epoch_last.pth", device)
-    seg_model = SegmentationInferenceWrapper(sam_model).to(device)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Classification model
-    cls_model = load_cls_model(args,"S2_save/glff_ham10000_rein_s/last.pth.tar", device)
 
-    # DataLoader 
-    # _, _, test_loader = get_dataloaders_train_only(
-    #     data_dir="/SSDd/youmin_park/dataset/ham10000",
-    #     batch_size=32,
-    #     num_workers=4,
-    #     random_seed=42
-    # )
-    
-    _, test_loader = get_dataloaders_train_only(
-        data_dir="/SSDd/youmin_park/dataset/ham10000",
-        batch_size=32,
+    config = read_conf(f'conf/data/{args.data}.yaml')
+    data_path = config['data_root']
+
+    _, _, test_loader = get_dataloaders(
+        data_dir=data_path,
+        batch_size=args.batch_size,
         num_workers=4,
         random_seed=42
     )
 
-    # Inference
-    acc = run_inference(seg_model, cls_model, test_loader, device)
-    print(f"Final Accuracy: {acc:.4f}")
+    test_loader = torch.utils.data.DataLoader(
+        test_loader.dataset,
+        batch_size=args.batch_size,
+        num_workers=4,
+        pin_memory=True
+    )
+
+    # -------------------------------------------------
+    # Model definition
+    # -------------------------------------------------
+    if args.netsize == 's':
+        model_load = dino_variant._small_dino
+        variant = dino_variant._small_variant
+    elif args.netsize == 'b':
+        model_load = dino_variant._base_dino
+        variant = dino_variant._base_variant
+    else:
+        model_load = dino_variant._large_dino
+        variant = dino_variant._large_variant
+
+    model = rein.ReinsDinoVisionTransformer(**variant)
+    model.linear = nn.Linear(variant['embed_dim'], config['num_classes'])
+
+    # -------------------------------------------------
+    # Load checkpoint
+    # -------------------------------------------------
+    ckpt = torch.load(args.ckpt, map_location='cpu')
+
+    if 'state_dict' in ckpt:
+        state_dict = ckpt['state_dict']
+    elif 'model' in ckpt:
+        state_dict = ckpt['model']
+    else:
+        state_dict = ckpt  
+
+    model.load_state_dict(state_dict, strict=False)
+    model.to(device)
+
+    if torch.cuda.device_count() > 1:
+        model = torch.nn.DataParallel(model)
+
+    model.eval()
+
+    # -------------------------------------------------
+    # Evaluation
+    # -------------------------------------------------
+    with torch.no_grad():
+        if args.adapter in ['rein', 'adaptformer']:
+            acc = validation_accuracy(
+                model,
+                test_loader,
+                device,
+                mode=args.adapter
+            )
+        else:
+            acc = validation_accuracy_lora(
+                model,
+                test_loader,
+                device
+            )
+
+    print("=" * 60)
+    print(f"Dataset     : {args.data}")
+    print(f"Adapter     : {args.adapter}")
+    print(f"Net size    : {args.netsize}")
+    print(f"Checkpoint  : {args.ckpt}")
+    print(f"Test Acc    : {acc:.4f}")
+    print("=" * 60)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

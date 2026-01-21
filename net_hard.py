@@ -153,7 +153,8 @@ class FusionHead(nn.Module):
         self.fusion = fusion
 
         if fusion == "concat":
-            in_dim = embed_dim * 2
+            # in_dim = embed_dim * 2
+            in_dim = embed_dim * 3   # CLS + patch_mean + local
             self.mlp = nn.Sequential(
                 nn.LayerNorm(in_dim),
                 nn.Linear(in_dim, hidden_dim),
@@ -163,7 +164,8 @@ class FusionHead(nn.Module):
             )
         else:
             # gate: alpha = sigmoid(W[f_g||f_l])
-            in_dim = embed_dim * 2
+            # in_dim = embed_dim * 2
+            in_dim = embed_dim * 3   # CLS + patch_mean + local
             self.gate = nn.Sequential(
                 nn.LayerNorm(in_dim),
                 nn.Linear(in_dim, embed_dim),
@@ -243,8 +245,10 @@ class GlobalLocalLesionClassifier(nn.Module):
         g_cls = g_tokens[:, 0, :]                               # (B, D)
         g_patch = g_tokens[:, 1:, :]                            # (B, N, D)
 
+
         if self.use_global_cls:
-            f_global = g_cls
+            # f_global = g_cls
+            f_global = torch.cat([g_cls, g_patch.mean(dim=1)], dim=-1)
         else:
             f_global = g_patch.mean(dim=1)
 
@@ -279,5 +283,4 @@ class GlobalLocalLesionClassifier(nn.Module):
         # -------------
         logits = self.head(f_global, f_local)
 
-        # (선택) 디버깅/시각화를 위해 중간값을 함께 반환하고 싶다면 dict로 반환하도록 변경 가능
         return logits

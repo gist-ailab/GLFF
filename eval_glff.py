@@ -16,8 +16,9 @@ import rein
 import dino_variant
 from util import read_conf
 from net_hard import GlobalLocalLesionClassifier
-# from data.ham10000_seg import get_dataloaders_with_mask
-from data.ham10000_seg_trainset_split import get_dataloaders_train_only
+# from net_soft import GlobalLocalLesionClassifier
+from data.ham10000_seg import get_dataloaders_with_mask
+# from data.ham10000_seg_trainset_split import get_dataloaders_train_only
 import S1_models 
 
 def save_overlay_batch(
@@ -159,11 +160,11 @@ def load_cls_model(args, ckpt_path, device):
         tau=0.001,
         min_tokens=4,
         num_heads=8,
-        cross_attn_layers=2,
+        cross_attn_layers=1,
         fusion="concat",        # "concat" or "gate"
         hidden_dim=512,
         # dropout=0.2,
-        use_global_cls=False
+        use_global_cls=True
     )
 
     model.load_state_dict(checkpoint)
@@ -173,7 +174,7 @@ def load_cls_model(args, ckpt_path, device):
 
 
 @torch.no_grad()
-def run_inference(seg_model, cls_model, loader, device):
+def run_inference(seg_model, cls_model, loader, device, save_overlay_dir=None):
     preds, labels = [], []
 
     for images, _, gt in tqdm(loader, desc="Inference", ncols=100):
@@ -183,7 +184,7 @@ def run_inference(seg_model, cls_model, loader, device):
         masks = seg_model(images)              # ← SAM 추론
         logits = cls_model(images, masks)      # ← 기존 모델 그대로
         
-        
+        img_counter = 0
         # 🔹 overlay 저장
         if save_overlay_dir is not None:
             save_overlay_batch(
@@ -219,22 +220,21 @@ def main():
     seg_model = SegmentationInferenceWrapper(sam_model).to(device)
 
     # Classification model
-    cls_model = load_cls_model(args,"S2_save/glff_ham10000_rein_s_ca2/last.pth.tar", device)
+    cls_model = load_cls_model(args,"S2_save/glff_ham10000_rein_s_hard_50/last.pth.tar", device)
 
-    # DataLoader 
-    # _, _, test_loader = get_dataloaders_train_only(
-    #     data_dir="/SSDd/youmin_park/dataset/ham10000",
-    #     batch_size=32,
-    #     num_workers=4,
-    #     random_seed=42
-    # )
-    
-    _, test_loader = get_dataloaders_train_only(
+    _, _, test_loader = get_dataloaders_with_mask(
         data_dir="/SSDd/youmin_park/dataset/ham10000",
         batch_size=32,
         num_workers=4,
         random_seed=42
     )
+    
+    # _, test_loader = get_dataloaders_train_only(
+    #     data_dir="/SSDd/youmin_park/dataset/ham10000",
+    #     batch_size=32,
+    #     num_workers=4,
+    #     random_seed=42
+    # )
 
     # Inference
     # acc = run_inference(seg_model, cls_model, test_loader, device)

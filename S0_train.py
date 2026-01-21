@@ -29,8 +29,8 @@ import adaptformer
 
 import dino_variant
 from sklearn.metrics import f1_score
-# from data import dataloader
-from data.ham10000_train_split import get_cls_dataloaders_train_only
+from data.ham10000 import get_dataloaders
+# from data.ham10000_train_split import get_cls_dataloaders_train_only
 
 
 def ddp_setup():
@@ -87,30 +87,36 @@ def train():
     max_epoch = int(args.epoch)
     # num_workers = int(config['num_workers'])
     
-    # train_loader, valid_loader, test_loader = dataloader.setup_data_loaders(args, data_path, batch_size=batch_size)  
-    train_loader, test_loader = get_cls_dataloaders_train_only(
+    train_loader, _, test_loader = get_dataloaders(
         data_dir=data_path,
-        batch_size=256,   
+        batch_size=256,
         num_workers=4,
         random_seed=42
     )
+    
+    # train_loader, test_loader = get_cls_dataloaders_train_only(
+    #     data_dir=data_path,
+    #     batch_size=512,   
+    #     num_workers=4,
+    #     random_seed=42
+    # )
 
 
-    train_loader = torch.utils.data.DataLoader(
-        train_loader.dataset,
-        batch_size=128,
-        # sampler=train_sampler,
-        num_workers=4,
-        pin_memory=True
-    )
+    # train_loader = torch.utils.data.DataLoader(
+    #     train_loader.dataset,
+    #     batch_size=128,
+    #     # sampler=train_sampler,
+    #     num_workers=4,
+    #     pin_memory=True
+    # )
 
-    test_loader = torch.utils.data.DataLoader(
-        test_loader.dataset,
-        batch_size=128,
-        # sampler=val_sampler,
-        num_workers=4,
-        pin_memory=True
-    )
+    # test_loader = torch.utils.data.DataLoader(
+    #     test_loader.dataset,
+    #     batch_size=128,
+    #     # sampler=val_sampler,
+    #     num_workers=4,
+    #     pin_memory=True
+    # )
 
     os.makedirs(save_path, exist_ok=True)
         
