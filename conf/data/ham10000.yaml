@@ -1,6 +1,6 @@
 name: ham10000
 
-data_root: /SSDe/youmin_park/dataset/ham10000
+data_root: /SSDd/youmin_park/dataset/ham10000
 batch_size: 128
 epoch: 370
 num_classes: 7

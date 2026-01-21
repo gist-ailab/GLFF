@@ -1,13 +1,13 @@
 import warnings
 warnings.filterwarnings("ignore", message="xFormers is not available")
 import sys
-sys.path.append("/SSDe/youmin_park/GLFF/")
+sys.path.append("/SSDd/youmin_park/GLFF/")
 import time
 from datetime import timedelta
 from tqdm import tqdm
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,4,6,7"
 import torch
 import torch.nn as nn
 from torch.cuda.amp.autocast_mode import autocast
@@ -74,7 +74,7 @@ def train():
     parser.add_argument('--adapter', '-a', type=str, default='rein')
     # parser.add_argument('--gpu', '-g', default = '0', type=str)
     parser.add_argument('--netsize', default='s', type=str)
-    parser.add_argument('--save_path', '-s', type=str)
+    parser.add_argument('--save_path', '-s', type=str, default='glff_ham10000_rein_s')
     parser.add_argument('--epoch', '-e', type=str, default=None)
     args = parser.parse_args()
     
@@ -84,10 +84,11 @@ def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     num_gpus = torch.cuda.device_count()
     print(f"Using {num_gpus} GPUs")
-    save_path = os.path.join(config['save_path'], args.save_path)
+    # save_path = os.path.join(config['save_path'], args.save_path)
+    save_path = os.path.join('./S2_train/save/', args.save_path)
     data_path = config['data_root']
     # batch_size = int(config['batch_size'])
-    batch_size = 128
+    batch_size = 512
     max_epoch = int(args.epoch)
     # num_workers = int(config['num_workers'])
     
@@ -129,7 +130,7 @@ def train():
         tau=0.001,
         min_tokens=4,
         num_heads=8,
-        fusion="concat",        # or "gate"
+        fusion="gate",        # or "gate"
         hidden_dim=512,
         # dropout=0.2,
         use_global_cls=False

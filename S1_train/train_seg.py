@@ -1,6 +1,6 @@
 import argparse
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,4"
 
 import random
 from statistics import mean
@@ -15,6 +15,8 @@ import torch.distributed as dist
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.utils.data.distributed import DistributedSampler
 from torch.optim.lr_scheduler import CosineAnnealingLR
+
+
 
 import models
 import utils
@@ -229,8 +231,6 @@ def make_data_loaders(
     )
     return train_loader, val_loader
 
-from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
 
 def make_train_loader(
     data_dir: str,
@@ -424,11 +424,11 @@ def save_ckpt(model, save_dir, name):
 # -------------------------
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_dir", type=str, default="/SSDe/youmin_park/dataset/ham10000")
+    parser.add_argument("--data_dir", type=str, default="/SSDd/youmin_park/dataset/ham10000")
     parser.add_argument("--sam_checkpoint", type=str, default="./pretrained/sam2.1_hiera_large.pt")
     parser.add_argument("--save_dir", type=str, default="./save/ham10000_sam_final")
 
-    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_workers", type=int, default=8)
 
@@ -440,9 +440,9 @@ def main():
 
     parser.add_argument("--inp_size", type=int, default=224)
 
-    parser.add_argument("--lr", type=float, default=2e-4)
+    parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight_decay", type=float, default=0.01)
-    parser.add_argument("--lr_min", type=float, default=1e-6)
+    parser.add_argument("--lr_min", type=float, default=1e-5)
 
     parser.add_argument("--eval_type", type=str, default="kvasir")  # dice/iou
     parser.add_argument("--loss", type=str, default="iou")          # bce/bbce/iou
@@ -553,7 +553,6 @@ def main():
             
             save_ckpt(model, args.save_dir, "last")
 
-            # 기본: dice가 best 기준
             if val_m1 > best_metric:
                 best_metric = val_m1
                 save_ckpt(model, args.save_dir, "best")

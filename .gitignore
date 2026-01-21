@@ -1,5 +1,8 @@
-S1_train/save/*
-S1_train/pretrained/*
+# S1_train/save/*
+# S1_train/pretrained/*
 data/*.npz
 *.npz
 *.pdf
+*.tar
+*.pth
+*.pt

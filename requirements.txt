@@ -1,0 +1,104 @@
+# -------------------------
+# Core
+# -------------------------
+numpy
+scipy
+pandas
+matplotlib
+seaborn
+tqdm
+packaging
+
+# -------------------------
+# Async / Networking
+# -------------------------
+aiohttp
+aiohappyeyeballs
+aiosignal
+async-timeout
+frozenlist
+multidict
+yarl
+requests
+urllib3
+certifi
+charset-normalizer
+idna
+
+# -------------------------
+# Vision / CV
+# -------------------------
+opencv-python
+opencv-python-headless
+Pillow
+scikit-image
+imageio
+imagecodecs
+timm
+fvcore
+yacs
+
+# -------------------------
+# Augmentation
+# -------------------------
+albumentations
+albucore
+
+# -------------------------
+# ML / Metrics
+# -------------------------
+scikit-learn
+imbalanced-learn
+scikit-optimize
+torchmetrics
+
+# -------------------------
+# Lightning
+# -------------------------
+pytorch-lightning
+lightning-utilities
+
+# -------------------------
+# HuggingFace / NLP
+# -------------------------
+datasets
+huggingface-hub
+tokenizers
+regex
+ftfy
+open-clip-torch
+
+# -------------------------
+# Config / Utils
+# -------------------------
+omegaconf
+hydra-core
+pyyaml
+addict
+rich
+prettytable
+fire
+termcolor
+antlr4-python3-runtime
+
+# -------------------------
+# IO / System
+# -------------------------
+filelock
+platformdirs
+joblib
+portalocker
+python-dateutil
+pytz
+tzdata
+
+# -------------------------
+# Misc
+# -------------------------
+protobuf
+pyarrow
+sympy
+six
+typing-extensions
+wcwidth
+zipp
