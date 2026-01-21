@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from util import dilate_mask
+
 
 # -------------------------
 # 1) Lesion Token Selector (LTS)
@@ -219,6 +221,7 @@ class GlobalLocalLesionClassifier(nn.Module):
         num_heads: int = 8,
         cross_attn_layers: int = 2, 
         fusion: str = "concat",
+        cross_attn_warmup_epochs: int = 0,  
         hidden_dim: int = 512,
         dropout: float = 0.0,
         use_global_cls: bool = False,  # False: meanpool patch tokens, True: use CLS for global vector
@@ -232,6 +235,8 @@ class GlobalLocalLesionClassifier(nn.Module):
         self.cross_attn = LesionToGlobalCrossAttention(embed_dim=embed_dim, num_heads=num_heads)
         self.head = FusionHead(embed_dim=embed_dim, num_classes=num_classes, fusion=fusion,
                                hidden_dim=hidden_dim, dropout=dropout)
+        self.current_epoch = 0
+        self.cross_attn_warmup_epochs = cross_attn_warmup_epochs
 
     def forward(self, image: torch.Tensor, mask: torch.Tensor):
         """
@@ -267,7 +272,16 @@ class GlobalLocalLesionClassifier(nn.Module):
         # -------------
         # Cross-attention: lesion queries attend to all global patch tokens (K,V)
         # -------------
-        z_list = self.cross_attn(q_list, g_patch)  # list[(N_l_i,D)]
+        # z_list = self.cross_attn(q_list, g_patch)  # list[(N_l_i,D)]
+        use_cross_attn = (
+            (not self.training) or
+            (self.current_epoch >= self.cross_attn_warmup_epochs)
+        )
+
+        if use_cross_attn:
+            z_list = self.cross_attn(q_list, g_patch)
+        else:
+            z_list = q_list   # cross-attn OFF
 
         # -------------
         # Pool lesion tokens -> fixed vector f_local (B,D)

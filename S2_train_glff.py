@@ -134,6 +134,7 @@ def train():
         fusion="concat",        # "concat" or "gate"
         hidden_dim=512,   # 256?
         # dropout=0.2,
+        cross_attn_warmup_epochs=5,
         use_global_cls=True
     )
         
@@ -147,10 +148,10 @@ def train():
     
     print(model)
     
-    print("Max epoch: ", max_epoch)
+    # print("Max epoch: ", max_epoch)
     
     criterion = torch.nn.CrossEntropyLoss()
-    print("Criterion: ", criterion)
+    # print("Criterion: ", criterion)
     model.eval()
 
 
@@ -198,6 +199,11 @@ def train():
     for epoch in range(max_epoch):
         epoch_start_time = time.time()
 
+        # === cross-attn warm-up epoch 전달 ===
+        if isinstance(model, torch.nn.DataParallel):
+            model.module.current_epoch = epoch
+        else:
+            model.current_epoch = epoch
         # -------------------------
         # Train
         # -------------------------

@@ -15,7 +15,7 @@ from PIL import Image
 import rein
 import dino_variant
 from util import read_conf
-from net_hard import GlobalLocalLesionClassifier
+from net_hard import GlobalLocalLesio,nClassifier
 # from net_soft import GlobalLocalLesionClassifier
 from data.ham10000_seg import get_dataloaders_with_mask
 # from data.ham10000_seg_trainset_split import get_dataloaders_train_only

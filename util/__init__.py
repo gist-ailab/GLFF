@@ -7,5 +7,6 @@ from .ties_merging import *
 from .failure_prediction import *
 from .calibration import *
 from .bin_temperature_scaling import *
+from .dilate_mask import *
 # from .flops import *
 # from ..data.dataset import *
