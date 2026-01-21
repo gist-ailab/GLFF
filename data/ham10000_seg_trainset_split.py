@@ -123,7 +123,7 @@ def get_transforms(train=True):
 
 from torch.utils.data import random_split
 
-def get_teacher_dataloaders_train_only(
+def get_dataloaders_train_only(
     data_dir,
     batch_size=32,
     num_workers=4,

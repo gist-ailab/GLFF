@@ -1,6 +1,6 @@
 import argparse
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
 
 import random
 from statistics import mean
@@ -16,10 +16,8 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torch.utils.data.distributed import DistributedSampler
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-
-
-import models
-import utils
+import S1_models
+import S1_utils
 
 
 # -------------------------
@@ -308,10 +306,6 @@ def make_train_loader(
 # -------------------------
 def load_sam_ckpt(model, ckpt_path, rank=0):
     ckpt = torch.load(ckpt_path, map_location="cpu")
-
-    # repo마다 ckpt 포맷이 다를 수 있음 (확실하지않음)
-    # - dict with key "model"
-    # - state_dict 직접
     if isinstance(ckpt, dict) and "model" in ckpt and isinstance(ckpt["model"], dict):
         state = ckpt["model"]
     elif isinstance(ckpt, dict):
@@ -452,7 +446,7 @@ def main():
     rank, local_rank, world_size, device, is_ddp = ddp_setup()
     seed_all(args.seed)
 
-    log, writer = utils.set_save_path(args.save_dir, remove=False)
+    log, writer = S1_utils.set_save_path(args.save_dir, remove=False)
 
     if is_main_process(rank):
         log(f"DDP={is_ddp} rank={rank} local_rank={local_rank} world_size={world_size}")
@@ -509,7 +503,7 @@ def main():
         }
     }
 
-    model = models.make(model_spec).to(device)
+    model = S1_models.make(model_spec).to(device)
 
     optimizer_spec = {
         "name": "adamw",

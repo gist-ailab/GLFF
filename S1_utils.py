@@ -7,7 +7,7 @@ import numpy as np
 from torch.optim import SGD, Adam, AdamW
 from tensorboardX import SummaryWriter
 
-import sod_metric
+import S1_sod_metric
 class Averager():
 
     def __init__(self):

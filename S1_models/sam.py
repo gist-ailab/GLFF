@@ -1,3 +1,4 @@
+import sys
 import logging
 from functools import partial
 
@@ -6,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models import register
+from S1_models.models import register
 from .mmseg.models.sam import ImageEncoderViT, MaskDecoder, TwoWayTransformer
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ class BBCEWithLogitLoss(nn.Module):
         count_pos = torch.sum(gt) + eps
         count_neg = torch.sum(1. - gt)
         ratio = count_neg / count_pos
+
         w_neg = count_pos / (count_pos + count_neg)
 
         bce1 = nn.BCEWithLogitsLoss(pos_weight=ratio)

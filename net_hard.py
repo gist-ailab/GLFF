@@ -61,38 +61,86 @@ class LesionTokenSelector(nn.Module):
 # -------------------------
 # 2) Cross-Attention block (lesion queries attend to global tokens)
 # -------------------------
-class LesionToGlobalCrossAttention(nn.Module):
+class LesionToGlobalCrossAttnLayer(nn.Module):
     """
-    Cross-attn: Q (lesion tokens) attends to K,V (global tokens)
-    Output per sample: (N_l_i, D)
+    Single cross-attention layer:
+      Q: lesion tokens
+      K,V: global tokens
     """
-    def __init__(self, embed_dim: int, num_heads: int = 8, attn_dropout: float = 0.0, proj_dropout: float = 0.0):
+    def __init__(self, embed_dim: int, num_heads: int,
+                 attn_dropout: float = 0.0, proj_dropout: float = 0.0):
         super().__init__()
-        self.mha = nn.MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads,
-                                         dropout=attn_dropout, batch_first=True)
-        self.proj_drop = nn.Dropout(proj_dropout)
         self.norm_q = nn.LayerNorm(embed_dim)
         self.norm_kv = nn.LayerNorm(embed_dim)
 
+        self.attn = nn.MultiheadAttention(
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            dropout=attn_dropout,
+            batch_first=True,
+        )
+        self.proj_drop = nn.Dropout(proj_dropout)
+
+    def forward(self, q: torch.Tensor, kv: torch.Tensor):
+        """
+        q : (1, N_l, D)
+        kv: (1, N, D)
+        """
+        qn = self.norm_q(q)
+        kvn = self.norm_kv(kv)
+
+        z, _ = self.attn(qn, kvn, kvn, need_weights=False)
+        z = self.proj_drop(z)
+        return q + z   # residual
+
+
+
+
+class LesionToGlobalCrossAttention(nn.Module):
+    """
+    Stack of cross-attention layers
+    """
+    def __init__(
+        self,
+        embed_dim: int,
+        num_heads: int = 8,
+        num_layers: int = 1,
+        attn_dropout: float = 0.0,
+        proj_dropout: float = 0.0,
+    ):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            LesionToGlobalCrossAttnLayer(
+                embed_dim=embed_dim,
+                num_heads=num_heads,
+                attn_dropout=attn_dropout,
+                proj_dropout=proj_dropout,
+            )
+            for _ in range(num_layers)
+        ])
+
     def forward(self, q_list, kv_tokens: torch.Tensor):
         """
-        q_list: list of length B, each Tensor is (N_l_i, D)
+        q_list   : list length B, each (N_l_i, D)
         kv_tokens: (B, N, D)
-        returns:
-          z_list: list length B, each is (N_l_i, D)
-        """
-        B, N, D = kv_tokens.shape
-        kv = self.norm_kv(kv_tokens)
 
+        returns:
+          z_list  : list length B, each (N_l_i, D)
+        """
+        B, _, _ = kv_tokens.shape
         z_list = []
+
         for b in range(B):
-            q = q_list[b].unsqueeze(0)  # (1, N_l, D)
-            q = self.norm_q(q)
-            # MultiheadAttention expects (B, L, D) with batch_first=True
-            z, _ = self.mha(query=q, key=kv[b:b+1], value=kv[b:b+1], need_weights=False)
-            z = self.proj_drop(z)  # (1, N_l, D)
-            z_list.append(z.squeeze(0))
+            q = q_list[b].unsqueeze(0)          # (1, N_l, D)
+            kv = kv_tokens[b:b+1]              # (1, N, D)
+
+            for layer in self.layers:
+                q = layer(q, kv)
+
+            z_list.append(q.squeeze(0))         # (N_l, D)
+
         return z_list
+
 
 
 # -------------------------
@@ -167,6 +215,7 @@ class GlobalLocalLesionClassifier(nn.Module):
         tau: float = 0.5,
         min_tokens: int = 4,
         num_heads: int = 8,
+        cross_attn_layers: int = 2, 
         fusion: str = "concat",
         hidden_dim: int = 512,
         dropout: float = 0.0,

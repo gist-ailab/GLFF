@@ -6,7 +6,7 @@ import time
 from datetime import timedelta
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
 import torch
 import torch.nn as nn
 from torch.cuda.amp.autocast_mode import autocast
@@ -34,7 +34,6 @@ from data.ham10000_train_split import get_cls_dataloaders_train_only
 
 
 def ddp_setup():
-    # torchrun이 환경변수로 설정해줌
     dist.init_process_group(backend="nccl")
     local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(local_rank)
@@ -69,19 +68,20 @@ def train():
     seed_for_init(42)
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data', '-d', type=str, default='cifar100')
+    parser.add_argument('--data', '-d', type=str, default='ham10000')
     parser.add_argument('--adapter', '-a', type=str, default='rein')
     # parser.add_argument('--gpu', '-g', default = '0', type=str)
     parser.add_argument('--netsize', default='s', type=str)
     parser.add_argument('--save_path', '-s', type=str)
     parser.add_argument('--epoch', '-e', type=str, default=None)
     args = parser.parse_args()
-    
+
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     config = read_conf('conf/data/'+args.data+'.yaml')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     num_gpus = torch.cuda.device_count()
-    save_path = os.path.join(config['save_path'], args.save_path)
+    # save_path = os.path.join(config['save_path'], args.save_path)
+    save_path = os.path.join('./S0_train/save/', args.save_path)
     data_path = config['data_root']
     batch_size = int(config['batch_size'])
     max_epoch = int(args.epoch)
@@ -90,18 +90,16 @@ def train():
     # train_loader, valid_loader, test_loader = dataloader.setup_data_loaders(args, data_path, batch_size=batch_size)  
     train_loader, test_loader = get_cls_dataloaders_train_only(
         data_dir=data_path,
-        batch_size=128,   
+        batch_size=256,   
         num_workers=4,
         random_seed=42
     )
 
-    train_sampler = DistributedSampler(train_loader.dataset, shuffle=True)
-    val_sampler   = DistributedSampler(test_loader.dataset, shuffle=False)
 
     train_loader = torch.utils.data.DataLoader(
         train_loader.dataset,
         batch_size=128,
-        sampler=train_sampler,
+        # sampler=train_sampler,
         num_workers=4,
         pin_memory=True
     )
@@ -109,7 +107,7 @@ def train():
     test_loader = torch.utils.data.DataLoader(
         test_loader.dataset,
         batch_size=128,
-        sampler=val_sampler,
+        # sampler=val_sampler,
         num_workers=4,
         pin_memory=True
     )
