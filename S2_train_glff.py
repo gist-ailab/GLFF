@@ -74,7 +74,7 @@ def train():
     parser.add_argument('--adapter', '-a', type=str, default='rein')
     # parser.add_argument('--gpu', '-g', default = '0', type=str)
     parser.add_argument('--netsize', default='s', type=str)
-    parser.add_argument('--save_path', '-s', type=str, default='glff_ham10000_rein_s_hard_epoch50_clspatch_512')
+    parser.add_argument('--save_path', '-s', type=str, default='glff_ham10000_rein_s_hard_epoch50_clspatch_512_warmup5_dilated')
     parser.add_argument('--epoch', '-e', type=str, default=50)
     args = parser.parse_args()
     

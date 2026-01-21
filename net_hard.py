@@ -260,14 +260,20 @@ class GlobalLocalLesionClassifier(nn.Module):
         # -------------
         # Local branch (masked image)
         # -------------
-        masked_image = image * mask  # broadcast: (B,3,H,W) * (B,1,H,W)
+        # masked_image = image * mask  # broadcast: (B,3,H,W) * (B,1,H,W)
+        
+        # mask dilation, kernel_size=1 -> og
+        mask_dilated = dilate_mask(self, mask, kernel_size=5)  # kernel_size = 3 -> 1 pixel expansion
+        masked_image = image * mask_dilated
+        
         l_tokens = self.local_encoder.forward_features(masked_image)  # (B, 1+N, D)
         l_patch = l_tokens[:, 1:, :]                                  # (B, N, D)
 
         # -------------
         # LTS: select lesion patch tokens from local tokens using patch-wise mask
         # -------------
-        q_list, sel_mask, patch_mask = self.lts(mask, l_patch)  # list[(N_l_i,D)], (B,N), (B,N)
+        # q_list, sel_mask, patch_mask = self.lts(mask, l_patch)  # list[(N_l_i,D)], (B,N), (B,N)
+        q_list, sel_mask, patch_mask = self.lts(mask_dilated, l_patch)
 
         # -------------
         # Cross-attention: lesion queries attend to all global patch tokens (K,V)
