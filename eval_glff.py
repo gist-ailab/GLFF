@@ -15,7 +15,7 @@ from PIL import Image
 import rein
 import dino_variant
 from util import read_conf
-from net_hard import GlobalLocalLesio,nClassifier
+from net_hard import GlobalLocalLesionClassifier
 # from net_soft import GlobalLocalLesionClassifier
 from data.ham10000_seg import get_dataloaders_with_mask
 # from data.ham10000_seg_trainset_split import get_dataloaders_train_only
@@ -220,7 +220,7 @@ def main():
     seg_model = SegmentationInferenceWrapper(sam_model).to(device)
 
     # Classification model
-    cls_model = load_cls_model(args,"S2_save/glff_ham10000_rein_s_hard_50/last.pth.tar", device)
+    cls_model = load_cls_model(args,"S2_save/glff_ham10000_rein_s_hard_epoch50_clspatch_512_warmup5_dilated/last.pth.tar", device)
 
     _, _, test_loader = get_dataloaders_with_mask(
         data_dir="/SSDd/youmin_park/dataset/ham10000",

@@ -1,6 +1,6 @@
 import argparse
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,4,6,7"
 
 import random
 from statistics import mean
@@ -35,10 +35,10 @@ def seed_all(seed: int):
 def ddp_setup():
     """
     Single GPU:
-      python train_ham10000_sam_ddp.py ...
+      python train_ham10000.py ...
 
     Multi GPU:
-      torchrun --nproc_per_node=NUM_GPUS train_ham10000_sam_ddp.py ...
+      torchrun --nproc_per_node=NUM_GPUS train_ham10000.py ...
     """
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ and "LOCAL_RANK" in os.environ:
         dist.init_process_group(backend="nccl", init_method="env://")
@@ -126,6 +126,7 @@ def get_transforms(train=True, img_size=256, crop_size=224):
         image_transform = transforms.Compose([
             transforms.Resize((img_size, img_size)),
             transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomRotation(degrees=10),
             transforms.RandomCrop((crop_size, crop_size)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -362,7 +363,7 @@ def validate_one_epoch(val_loader, model, device, is_ddp, rank, eval_type="kvasi
     model.eval()
 
     if eval_type == "kvasir":
-        metric_fn = utils.calc_kvasir
+        metric_fn = S1_utils.calc_kvasir
         metric1, metric2 = "dice", "iou"
     else:
         # 필요하면 확장
@@ -419,10 +420,10 @@ def save_ckpt(model, save_dir, name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_dir", type=str, default="/SSDd/youmin_park/dataset/ham10000")
-    parser.add_argument("--sam_checkpoint", type=str, default="./pretrained/sam2.1_hiera_large.pt")
-    parser.add_argument("--save_dir", type=str, default="./save/ham10000_sam_final")
+    parser.add_argument("--sam_checkpoint", type=str, default="./S1_pretrained/sam2.1_hiera_large.pt")
+    parser.add_argument("--save_dir", type=str, default="./S1_save/ham10000_sam_final_100_3")
 
-    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_workers", type=int, default=8)
 
@@ -434,9 +435,9 @@ def main():
 
     parser.add_argument("--inp_size", type=int, default=224)
 
-    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--lr", type=float, default=5e-4)
     parser.add_argument("--weight_decay", type=float, default=0.01)
-    parser.add_argument("--lr_min", type=float, default=1e-5)
+    parser.add_argument("--lr_min", type=float, default=5e-6)
 
     parser.add_argument("--eval_type", type=str, default="kvasir")  # dice/iou
     parser.add_argument("--loss", type=str, default="iou")          # bce/bbce/iou
@@ -509,7 +510,7 @@ def main():
         "name": "adamw",
         "args": {"lr": args.lr, "weight_decay": args.weight_decay},
     }
-    optimizer = utils.make_optimizer(model.parameters(), optimizer_spec)
+    optimizer = S1_utils.make_optimizer(model.parameters(), optimizer_spec)
     model.optimizer = optimizer
 
     lr_scheduler = CosineAnnealingLR(optimizer, args.epochs, eta_min=args.lr_min)
