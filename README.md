@@ -8,15 +8,18 @@
  ```
 
  ### Train Stage 1 (Segmentation model)
+ -Single GPU
  ```
- cd S1_train/
- torchrun --nproc_per_node=4 train_seg.py
+ python S1_train_seg.py
+ ```
+ -Multi GPU
+ ```
+ torchrun --nproc_per_node=4 S1_train_seg.py
  ```
 
 ### Train Stage 2 (GLFF model)
  ```
- cd S2_train/
- python train_glff.py 
+ python S2_train_glff.py 
  ```
 
 ### Inference whole framework
