@@ -156,33 +156,31 @@ def get_dataloaders_with_mask(
     # ---------------------------
     # Datasets
     # ---------------------------
+    # 1. 마스크 경로 설정 변경
+    train_mask_dir = os.path.join(data_dir, 'ham10000_mask') # GT 마스크
+    # SAM으로 생성한 마스크 경로
+    sam_mask_base = os.path.join(data_dir, 'inferred_masks') 
+    
+    # 2. Datasets 설정 수정
     train_dataset = HAM10000WithMaskDataset(
-        train_csv,
-        train_dir,
-        mask_dir,
-        image_transform=train_img_tf,
-        mask_transform=train_mask_tf,
-        use_mask=True           # ⭐ train만 mask 사용
+        train_csv, train_dir, train_mask_dir,
+        image_transform=train_img_tf, mask_transform=train_mask_tf,
+        use_mask=True # Train은 GT 마스크 사용
     )
 
     valid_dataset = HAM10000WithMaskDataset(
-        valid_csv,
-        valid_dir,
-        mask_dir,
-        image_transform=test_img_tf,
-        mask_transform=test_mask_tf,
-        use_mask=False          # ⭐ mask 미사용
+        valid_csv, valid_dir, 
+        mask_dir=os.path.join(sam_mask_base, 'valid_masks'), # SAM 마스크 경로로 변경
+        image_transform=test_img_tf, mask_transform=test_mask_tf,
+        use_mask=True # ⭐ False에서 True로 변경하여 마스크 로드 활성화
     )
 
     test_dataset = HAM10000WithMaskDataset(
-        test_csv,
-        test_dir,
-        mask_dir,
-        image_transform=test_img_tf,
-        mask_transform=test_mask_tf,
-        use_mask=False          # ⭐ mask 미사용
+        test_csv, test_dir, 
+        mask_dir=os.path.join(sam_mask_base, 'test_masks'), # SAM 마스크 경로로 변경
+        image_transform=test_img_tf, mask_transform=test_mask_tf,
+        use_mask=True # ⭐ False에서 True로 변경
     )
-
     # ---------------------------
     # DataLoaders
     # ---------------------------
@@ -210,9 +208,9 @@ def get_dataloaders_with_mask(
         pin_memory=True
     )
 
-    print(f"Train samples: {len(train_dataset)} (mask used)")
-    print(f"Valid samples: {len(valid_dataset)} (mask-free)")
-    print(f"Test  samples: {len(test_dataset)} (mask-free)")
+    print(f"Train samples: {len(train_dataset)} (GT mask used)")
+    print(f"Valid samples: {len(valid_dataset)} (SAM masks used)")
+    print(f"Test  samples: {len(test_dataset)} (SAM masks used)")
 
     return train_loader, valid_loader, test_loader
 

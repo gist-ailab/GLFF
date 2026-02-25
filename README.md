@@ -1,10 +1,21 @@
 # GLFF
 
 ### Set up
+ -set up
  ```
  conda create -n glff python=3.10 -y
  pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121
  pip install -r requirements.txt
+ ```
+
+ -Install MMCV
+ ```
+ pip install mmcv-full
+ ```
+
+ - Install SAM2 pretrained weights
+ ```
+ wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
  ```
 
  ### Train Stage 1 (Segmentation model)

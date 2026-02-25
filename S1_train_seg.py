@@ -1,6 +1,6 @@
 import argparse
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,4,6,7"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,4,6,7"
 
 import random
 from statistics import mean
@@ -413,15 +413,14 @@ def save_ckpt(model, save_dir, name):
     os.makedirs(save_dir, exist_ok=True)
     torch.save(model.state_dict(), os.path.join(save_dir, f"model_epoch_{name}.pth"))
 
-
 # -------------------------
 # Main
 # -------------------------
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_dir", type=str, default="/SSDd/youmin_park/dataset/ham10000")
+    parser.add_argument("--data_dir", type=str, default="/home/ailab-lba/ym_workspace/dataset/ham10000/")
     parser.add_argument("--sam_checkpoint", type=str, default="./S1_pretrained/sam2.1_hiera_large.pt")
-    parser.add_argument("--save_dir", type=str, default="./S1_save/ham10000_sam_final_100_3")
+    parser.add_argument("--save_dir", type=str, default="./S1_save/ham10000_sam2.1_large_seg")
 
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch_size", type=int, default=32)

@@ -1,13 +1,14 @@
 import warnings
 warnings.filterwarnings("ignore", message="xFormers is not available")
 import sys
-sys.path.append("/SSDd/youmin_park/GLFF/")
+# sys.path.append("/SSDd/youmin_park/GLFF/")
+sys.path.append("/home/ailab-lba/ym_workspace/GLFF/")
 import time
 from datetime import timedelta
 from tqdm import tqdm
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
 import torch
 import torch.nn as nn
 from torch.cuda.amp.autocast_mode import autocast
@@ -30,7 +31,7 @@ from net_hard import GlobalLocalLesionClassifier
 import dino_variant
 from sklearn.metrics import f1_score
 from data.ham10000_seg import get_dataloaders_with_mask
-# from data.ham10000_seg_trainset_split import get_dataloaders_train_only
+from data.ham10000_seg_trainset_split import get_dataloaders_train_only
 
 def rein_forward(model, inputs):
     output = model.forward_features(inputs)[:, 0, :]
@@ -74,7 +75,7 @@ def train():
     parser.add_argument('--adapter', '-a', type=str, default='rein')
     # parser.add_argument('--gpu', '-g', default = '0', type=str)
     parser.add_argument('--netsize', default='s', type=str)
-    parser.add_argument('--save_path', '-s', type=str, default='glff_ham10000_rein_s_hard_epoch50_clspatch_512_warmup5_dilated')
+    parser.add_argument('--save_path', '-s', type=str, default='glff_ham10000_rein_s_hard_epoch50_clspatch_512_warmup5_dilated_sam_mask')
     parser.add_argument('--epoch', '-e', type=str, default=50)
     args = parser.parse_args()
     
@@ -86,9 +87,10 @@ def train():
     print(f"Using {num_gpus} GPUs")
     # save_path = os.path.join(config['save_path'], args.save_path)
     save_path = os.path.join('./S2_save/', args.save_path)
-    data_path = config['data_root']
+    # data_path = config['data_root']
+    data_path = "/home/ailab-lba/ym_workspace/dataset/ham10000/"
     # batch_size = int(config['batch_size'])
-    batch_size = 256
+    batch_size = 32
     max_epoch = int(args.epoch)
     # num_workers = int(config['num_workers'])
     
@@ -98,6 +100,13 @@ def train():
         num_workers=4,
         random_seed=42  
     )
+    
+    # train_loader, test_loader = get_dataloaders_train_only(
+    #     data_dir=data_path,
+    #     batch_size=batch_size,
+    #     num_workers=4,
+    #     random_seed=42  
+    # )
     
     os.makedirs(save_path, exist_ok=True)
         

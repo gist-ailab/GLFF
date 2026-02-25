@@ -1,12 +1,13 @@
 import warnings
 warnings.filterwarnings("ignore", message="xFormers is not available")
 import sys
-sys.path.append("/SSDe/youmin_park/GLFF/")
+# sys.path.append("/SSDe/youmin_park/GLFF/")
+sys.path.append("/home/ailab-lba/ym_workspace/GLFF/")
 import time
 from datetime import timedelta
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
 import torch
 import torch.nn as nn
 from torch.cuda.amp.autocast_mode import autocast
@@ -30,7 +31,7 @@ import adaptformer
 import dino_variant
 from sklearn.metrics import f1_score
 from data.ham10000 import get_dataloaders
-# from data.ham10000_train_split import get_cls_dataloaders_train_only
+from data.ham10000_train_split import get_cls_dataloaders_train_only
 
 
 def ddp_setup():
@@ -72,8 +73,8 @@ def train():
     parser.add_argument('--adapter', '-a', type=str, default='rein')
     # parser.add_argument('--gpu', '-g', default = '0', type=str)
     parser.add_argument('--netsize', default='s', type=str)
-    parser.add_argument('--save_path', '-s', type=str)
-    parser.add_argument('--epoch', '-e', type=str, default=None)
+    parser.add_argument('--save_path', '-s', type=str, default='ham10000_rein_s_epoch50')
+    parser.add_argument('--epoch', '-e', type=str, default=50)
     args = parser.parse_args()
 
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -82,21 +83,23 @@ def train():
     num_gpus = torch.cuda.device_count()
     # save_path = os.path.join(config['save_path'], args.save_path)
     save_path = os.path.join('./S0_train/save/', args.save_path)
-    data_path = config['data_root']
-    batch_size = int(config['batch_size'])
+    # data_path = config['data_root']
+    data_path = "/home/ailab-lba/ym_workspace/dataset/ham10000/"
+    # batch_size = int(config['batch_size'])
+    batch_size = 32
     max_epoch = int(args.epoch)
     # num_workers = int(config['num_workers'])
     
     train_loader, _, test_loader = get_dataloaders(
         data_dir=data_path,
-        batch_size=256,
+        batch_size=batch_size,
         num_workers=4,
         random_seed=42
     )
     
     # train_loader, test_loader = get_cls_dataloaders_train_only(
     #     data_dir=data_path,
-    #     batch_size=512,   
+    #     batch_size=batch_size,   
     #     num_workers=4,
     #     random_seed=42
     # )
