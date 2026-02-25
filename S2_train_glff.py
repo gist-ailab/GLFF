@@ -75,8 +75,9 @@ def train():
     parser.add_argument('--adapter', '-a', type=str, default='rein')
     # parser.add_argument('--gpu', '-g', default = '0', type=str)
     parser.add_argument('--netsize', default='s', type=str)
-    parser.add_argument('--save_path', '-s', type=str, default='glff_ham10000_rein_s_hard_epoch50_clspatch_512_warmup5_dilated_sam_mask')
+    parser.add_argument('--save_path', '-s', type=str, default='glff_ham10000_rein_s_hard_epoch50_clspatch_512_warmup5_dilated_sam_mask_noise_0.2')
     parser.add_argument('--epoch', '-e', type=str, default=50)
+    parser.add_argument('--noise_rate', type=float, default=0.2, help='Label noise rate (0.0 ~ 1.0)')
     args = parser.parse_args()
     
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -90,7 +91,7 @@ def train():
     # data_path = config['data_root']
     data_path = "/home/ailab-lba/ym_workspace/dataset/ham10000/"
     # batch_size = int(config['batch_size'])
-    batch_size = 32
+    batch_size = 64
     max_epoch = int(args.epoch)
     # num_workers = int(config['num_workers'])
     
@@ -98,7 +99,8 @@ def train():
         data_dir=data_path,
         batch_size=batch_size,
         num_workers=4,
-        random_seed=42  
+        random_seed=42,
+        noise_rate=args.noise_rate
     )
     
     # train_loader, test_loader = get_dataloaders_train_only(

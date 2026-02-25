@@ -16,6 +16,8 @@ class HAM10000WithMaskDataset(Dataset):
         image_transform=None,
         mask_transform=None,
         use_mask=True,          # mask 
+        noise_rate=0.0,  # 노이즈 비율 (0.0 ~ 1.0)
+        seed=42          # 재현성을 위한 시드
     ):
         self.data = pd.read_csv(csv_file)
         self.image_dir = image_dir
@@ -23,6 +25,7 @@ class HAM10000WithMaskDataset(Dataset):
         self.image_transform = image_transform
         self.mask_transform = mask_transform
         self.use_mask = use_mask
+        self.num_classes = 7
 
         self.class_mapping = {
             'MEL': 0, 'NV': 1, 'BCC': 2,
@@ -34,6 +37,30 @@ class HAM10000WithMaskDataset(Dataset):
             .idxmax(axis=1)
             .map(self.class_mapping)
         )
+        
+        # -------------------------------------------------------
+        # Label Noise 추가 로직 (Symmetric Noise)
+        # -------------------------------------------------------
+        if noise_rate > 0:
+            import numpy as np
+            state = np.random.RandomState(seed) # 독립적인 난수 생성기 사용
+            
+            labels = self.data['encoded_labels'].values
+            n_samples = len(labels)
+            n_noisy = int(n_samples * noise_rate)
+            
+            # 노이즈를 줄 인덱스 선택
+            noisy_idx = state.choice(n_samples, n_noisy, replace=False)
+            
+            for idx in noisy_idx:
+                actual_label = labels[idx]
+                # 원래 레이블을 제외한 나머지 레이블 중 하나로 교체
+                possible_labels = [l for l in range(self.num_classes) if l != actual_label]
+                labels[idx] = state.choice(possible_labels)
+            
+            self.data['encoded_labels'] = labels
+            print(f"[Dataset] Applied {noise_rate*100}% label noise (Seed: {seed})")
+        # -------------------------------------------------------
 
     def __len__(self):
         return len(self.data)
@@ -125,7 +152,8 @@ def get_dataloaders_with_mask(
     data_dir,
     batch_size=32,
     num_workers=4,
-    random_seed=None
+    random_seed=None,
+    noise_rate=0.0
 ):
     if random_seed is None:
         random_seed = int(time.time()) % (2**32)
@@ -165,21 +193,25 @@ def get_dataloaders_with_mask(
     train_dataset = HAM10000WithMaskDataset(
         train_csv, train_dir, train_mask_dir,
         image_transform=train_img_tf, mask_transform=train_mask_tf,
-        use_mask=True # Train은 GT 마스크 사용
+        use_mask=True, # Train은 GT 마스크 사용
+        noise_rate=noise_rate, # 전달
+        seed=random_seed       # 재현성 보장
     )
 
     valid_dataset = HAM10000WithMaskDataset(
         valid_csv, valid_dir, 
         mask_dir=os.path.join(sam_mask_base, 'valid_masks'), # SAM 마스크 경로로 변경
         image_transform=test_img_tf, mask_transform=test_mask_tf,
-        use_mask=True # ⭐ False에서 True로 변경하여 마스크 로드 활성화
+        use_mask=True, # ⭐ False에서 True로 변경하여 마스크 로드 활성화
+        noise_rate=0.0, # Validation은 노이즈 없음
     )
 
     test_dataset = HAM10000WithMaskDataset(
         test_csv, test_dir, 
         mask_dir=os.path.join(sam_mask_base, 'test_masks'), # SAM 마스크 경로로 변경
         image_transform=test_img_tf, mask_transform=test_mask_tf,
-        use_mask=True # ⭐ False에서 True로 변경
+        use_mask=True, # ⭐ False에서 True로 변경
+        noise_rate=0.0  # Test는 노이즈 없음
     )
     # ---------------------------
     # DataLoaders

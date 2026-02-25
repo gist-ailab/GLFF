@@ -9,19 +9,54 @@ from PIL import Image
 
 # Custom dataset class
 class HAM10000Dataset(Dataset):
-    def __init__(self, csv_file, root_dir, transform=None):
+    def __init__(self, csv_file, root_dir, transform=None, noise_rate=0.0, seed=42):
         self.data = pd.read_csv(csv_file)
         self.root_dir = root_dir
         self.transform = transform
-        self.class_mapping = {'MEL': 0, 'NV': 1, 'BCC': 2, 'AKIEC': 3, 'BKL': 4, 'DF': 5, 'VASC': 6}
-        self.data['encoded_labels'] = self.data.iloc[:, 1:].idxmax(axis=1).map(self.class_mapping)
+        self.class_mapping = {
+            'MEL': 0, 'NV': 1, 'BCC': 2, 
+            'AKIEC': 3, 'BKL': 4, 'DF': 5, 'VASC': 6
+        }
+        self.num_classes = len(self.class_mapping)
+        
+        # 기본 레이블 생성
+        self.data['encoded_labels'] = (
+            self.data.iloc[:, 1:]
+            .idxmax(axis=1)
+            .map(self.class_mapping)
+        )
+
+        # -------------------------------------------------------
+        # Label Noise 추가 로직 (Symmetric)
+        # -------------------------------------------------------
+        if noise_rate > 0:
+            import numpy as np
+            # 전역 난수와 분리된 독립적 시드 상태 생성
+            state = np.random.RandomState(seed) 
+            
+            labels = self.data['encoded_labels'].values
+            n_samples = len(labels)
+            n_noisy = int(n_samples * noise_rate)
+            
+            # 노이즈를 적용할 인덱스 무작위 선택
+            noisy_idx = state.choice(n_samples, n_noisy, replace=False)
+            
+            for idx in noisy_idx:
+                actual_label = labels[idx]
+                # 자기 자신을 제외한 나머지 클래스 중 하나 선택
+                possible_labels = [l for l in range(self.num_classes) if l != actual_label]
+                labels[idx] = state.choice(possible_labels)
+            
+            self.data['encoded_labels'] = labels
+            print(f"[Dataset] Applied {noise_rate*100}% label noise (Seed: {seed})")
+        # -------------------------------------------------------
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, self.data.iloc[idx, 0] + '.jpg')
-        image = Image.open(img_name)
+        image = Image.open(img_name).convert('RGB') # 명시적 변환 추가
         label = self.data.iloc[idx]['encoded_labels']
 
         if self.transform:
@@ -30,7 +65,7 @@ class HAM10000Dataset(Dataset):
         return image, label
 
 # DataLoader function with dynamic seed
-def get_dataloaders(data_dir, batch_size=32, num_workers=4, random_seed=None):
+def get_dataloaders(data_dir, batch_size=32, num_workers=4, random_seed=None, noise_rate=0.0):
     # Generate random seed from current time if not provided
     if random_seed is None:
         random_seed = int(time.time()) % (2**32)
@@ -65,9 +100,15 @@ def get_dataloaders(data_dir, batch_size=32, num_workers=4, random_seed=None):
     test_dir = os.path.join(data_dir, 'test')
     
     # Datasets
-    train_dataset = HAM10000Dataset(csv_file=train_csv, root_dir=train_dir, transform=train_transform)
-    valid_dataset = HAM10000Dataset(csv_file=valid_csv, root_dir=valid_dir, transform=test_transform)
-    test_dataset = HAM10000Dataset(csv_file=test_csv, root_dir=test_dir, transform=test_transform)
+    # Train에만 노이즈 적용 (Seed는 random_seed와 동일하게 사용하여 일관성 유지)
+    train_dataset = HAM10000Dataset(
+        csv_file=train_csv, root_dir=train_dir, 
+        transform=train_transform, noise_rate=noise_rate, seed=random_seed
+    )
+    
+    # Valid/Test는 언제나 Clean Label로 평가
+    valid_dataset = HAM10000Dataset(csv_file=valid_csv, root_dir=valid_dir, transform=test_transform, noise_rate=0.0)
+    test_dataset = HAM10000Dataset(csv_file=test_csv, root_dir=test_dir, transform=test_transform, noise_rate=0.0)
     
     # DataLoaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
