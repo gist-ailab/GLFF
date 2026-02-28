@@ -75,9 +75,9 @@ def train():
     parser.add_argument('--adapter', '-a', type=str, default='rein')
     # parser.add_argument('--gpu', '-g', default = '0', type=str)
     parser.add_argument('--netsize', default='s', type=str)
-    parser.add_argument('--save_path', '-s', type=str, default='glff_ham10000_rein_s_hard_epoch50_clspatch_512_warmup5_dilated_sam_mask_noise_0.2')
+    parser.add_argument('--save_path', '-s', type=str, default='glff_ham10000_rein_s_hard_clspatch_512_warmup5')
     parser.add_argument('--epoch', '-e', type=str, default=50)
-    parser.add_argument('--noise_rate', type=float, default=0.2, help='Label noise rate (0.0 ~ 1.0)')
+    parser.add_argument('--noise_rate', type=float, default=0.0, help='Label noise rate (0.0 ~ 1.0)')
     args = parser.parse_args()
     
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -87,7 +87,8 @@ def train():
     num_gpus = torch.cuda.device_count()
     print(f"Using {num_gpus} GPUs")
     # save_path = os.path.join(config['save_path'], args.save_path)
-    save_path = os.path.join('./S2_save/', args.save_path)
+    save_dir = f"{args.save_path}_noise_{args.noise_rate}_epoch_{args.epoch}"
+    save_path = os.path.join('./S2_save/', save_dir)
     # data_path = config['data_root']
     data_path = "/home/ailab-lba/ym_workspace/dataset/ham10000/"
     # batch_size = int(config['batch_size'])
@@ -197,9 +198,9 @@ def train():
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, lr_decay)
 
-    saver = timm.utils.CheckpointSaver(
-        model, optimizer, checkpoint_dir=save_path, max_history=1
-    )
+    # saver = timm.utils.CheckpointSaver(
+    #     model, optimizer, checkpoint_dir=save_path, max_history=1
+    # )
 
     train_accuracies = []
     val_accuracies = []
@@ -243,7 +244,6 @@ def train():
 
             outputs = model(inputs, masks)     # logits
             loss = criterion(outputs, targets)
-
             loss.backward()
             optimizer.step()
 

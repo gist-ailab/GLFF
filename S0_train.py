@@ -73,9 +73,9 @@ def train():
     parser.add_argument('--adapter', '-a', type=str, default='rein')
     # parser.add_argument('--gpu', '-g', default = '0', type=str)
     parser.add_argument('--netsize', default='s', type=str)
-    parser.add_argument('--save_path', '-s', type=str, default='ham10000_rein_s_epoch50_noise_0.2')
+    parser.add_argument('--save_path', '-s', type=str, default='ham10000')
     parser.add_argument('--epoch', '-e', type=str, default=50)
-    parser.add_argument('--noise_rate', type=float, default=0.2, help='Label noise rate (0.0~1.0)')
+    parser.add_argument('--noise_rate', type=float, default=0.0, help='Label noise rate (0.0~1.0)')
     args = parser.parse_args()
 
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -83,7 +83,8 @@ def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     num_gpus = torch.cuda.device_count()
     # save_path = os.path.join(config['save_path'], args.save_path)
-    save_path = os.path.join('./S0_train/save/', args.save_path)
+    save_dir = f"{args.save_path}_noise_{args.noise_rate}_epoch_{args.epoch}"
+    save_path = os.path.join('./S0_train/save/', save_dir)
     # data_path = config['data_root']
     data_path = "/home/ailab-lba/ym_workspace/dataset/ham10000/"
     # batch_size = int(config['batch_size'])
