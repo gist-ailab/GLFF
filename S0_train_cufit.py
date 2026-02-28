@@ -121,8 +121,16 @@ def train():
                 loss_iam = criterion(iam_out, targets).mean()
                 loss_lam = criterion(lam_out, targets).mean()
             else:
-                loss_iam = (lpm_mask * criterion(iam_out, targets)).mean()
-                loss_lam = (iam_mask * criterion(lam_out, targets)).mean()
+                # loss_iam = (lpm_mask * criterion(iam_out, targets)).mean()
+                # loss_lam = (iam_mask * criterion(lam_out, targets)).mean()
+                
+                # 0 또는 1의 마스크는 그대로 유지하되, 하한선을 0.1로 설정
+                # weight = 0.1 (틀렸을 때) / weight = 1.0 (맞았을 때)
+                lpm_weight = 0.1 + 0.9 * lpm_mask
+                iam_weight = 0.1 + 0.9 * iam_mask
+                
+                loss_iam = (lpm_weight * criterion(iam_out, targets)).mean()
+    loss_lam = (iam_weight * criterion(lam_out, targets)).mean()
 
             total_loss = loss_lpm + loss_iam + loss_lam
             
