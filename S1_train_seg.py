@@ -413,7 +413,7 @@ def save_ckpt(model, save_dir, name):
     os.makedirs(save_dir, exist_ok=True)
     torch.save(model.state_dict(), os.path.join(save_dir, f"model_epoch_{name}.pth"))
 
-# -------------------------
+# -------------------------F
 # Main
 # -------------------------
 def main():
