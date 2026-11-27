@@ -6,8 +6,6 @@ import torch.nn as nn
 import argparse
 from tqdm import tqdm
 import timm
-import numpy as np
-import torch.nn.functional as F
 
 from cufit_model import create_glff_model
 import dino_variant
@@ -34,8 +32,7 @@ def train():
     variant = dino_variant._small_variant
     save_dir = f"{args.save_path}_noise_{args.noise_rate}_epoch_{args.epoch}"
     save_path = os.path.join('./S3_save/', save_dir)
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
+    os.makedirs(save_path, exist_ok=True)
     
     # 1. 데이터 로더 설정 (Label Noise 및 Mask 포함)
     # train_loader는 (이미지, 마스크, 레이블)return

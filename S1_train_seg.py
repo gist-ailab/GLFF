@@ -3,14 +3,12 @@ import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,4,6,7"
 
 import random
-from statistics import mean
 
 import pandas as pd
 from PIL import Image
 from tqdm import tqdm
 
 import torch
-import torch.nn.functional as F
 import torch.distributed as dist
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.utils.data.distributed import DistributedSampler

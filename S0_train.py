@@ -7,26 +7,18 @@ import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
 import torch
 import torch.nn as nn
-from torch.cuda.amp.autocast_mode import autocast
 from torch.cuda.amp.grad_scaler import GradScaler
-from torch.nn import functional as F
 import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data.distributed import DistributedSampler
 
 import argparse
 from tqdm import tqdm
 import timm
-import matplotlib.pyplot as plt
 from util import read_conf, validation_accuracy, validation_accuracy_lora
 
 import rein
-import adaptformer
 
 import dino_variant
-from sklearn.metrics import f1_score
 from data.ham10000 import get_dataloaders
-from data.ham10000_train_split import get_cls_dataloaders_train_only
 from util.training import seed_for_init, set_requires_grad
 
 
@@ -82,30 +74,6 @@ def train():
         noise_rate=args.noise_rate
     )
     
-    # train_loader, test_loader = get_cls_dataloaders_train_only(
-    #     data_dir=data_path,
-    #     batch_size=batch_size,   
-    #     num_workers=4,
-    #     random_seed=42
-    # )
-
-
-    # train_loader = torch.utils.data.DataLoader(
-    #     train_loader.dataset,
-    #     batch_size=128,
-    #     # sampler=train_sampler,
-    #     num_workers=4,
-    #     pin_memory=True
-    # )
-
-    # test_loader = torch.utils.data.DataLoader(
-    #     test_loader.dataset,
-    #     batch_size=128,
-    #     # sampler=val_sampler,
-    #     num_workers=4,
-    #     pin_memory=True
-    # )
-
     os.makedirs(save_path, exist_ok=True)
         
     model_load, variant = dino_variant.DINO_VARIANTS[args.netsize]

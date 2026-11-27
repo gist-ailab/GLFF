@@ -1,14 +1,11 @@
 import warnings
 warnings.filterwarnings("ignore", message="xFormers is not available")
 import os
-import time
-from datetime import timedelta
 from tqdm import tqdm
 
 import torch
 import torch.nn as nn
 import argparse
-import timm
 
 import rein
 import dino_variant

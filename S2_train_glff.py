@@ -8,23 +8,18 @@ import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
 import torch
 import torch.nn as nn
-from torch.nn import functional as F
 
 import argparse
 import timm
-import matplotlib.pyplot as plt
 from util import read_conf
 from util.metric_seg import validation_accuracy
 
 import rein
-import adaptformer
 from net_hard import GlobalLocalLesionClassifier
 # from net_soft import GlobalLocalLesionClassifier
 
 import dino_variant
-from sklearn.metrics import f1_score
 from data.ham10000_seg import get_dataloaders_with_mask
-from data.ham10000_seg_trainset_split import get_dataloaders_train_only
 from util.forward import rein_forward, lora_forward, adaptformer_forward
 from util.training import seed_for_init, set_requires_grad
 

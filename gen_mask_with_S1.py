@@ -1,7 +1,5 @@
 import os
 import torch
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
 from torchvision import transforms
 from PIL import Image
 from tqdm import tqdm

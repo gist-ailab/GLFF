@@ -3,14 +3,11 @@ import os
 import random
 import argparse
 import numpy as np
-import pandas as pd
 from PIL import Image
 from tqdm import tqdm
 from pycocotools import mask as coco_mask
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.distributed as dist
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.distributed import DistributedSampler

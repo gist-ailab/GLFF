@@ -170,7 +170,7 @@ class GlobalLocalLesionClassifier(nn.Module):
         z = self.cross_attn(
             q_list=[l_weighted[b] for b in range(l_weighted.size(0))],
             kv_tokens=g_patch
-)
+        )
 
         f_local = []
         for b in range(len(z)):
@@ -188,55 +188,3 @@ class GlobalLocalLesionClassifier(nn.Module):
         logits = self.head(f_global, f_local)
 
         return logits
-
-
-#     def forward(self, image: torch.Tensor, mask: torch.Tensor):
-#         """
-#         image: (B,3,224,224)
-#         mask : (B,1,224,224) float in [0,1]
-#         """
-#         # -------------
-#         # Global branch
-#         # -------------
-#         g_tokens = self.global_encoder.forward_features(image)  # (B, 1+N, D)
-#         g_cls = g_tokens[:, 0, :]                               # (B, D)
-#         g_patch = g_tokens[:, 1:, :]                            # (B, N, D)
-
-#         if self.use_global_cls:
-#             f_global = g_cls
-#         else:
-#             f_global = g_patch.mean(dim=1)
-
-#         # -------------
-#         # Local branch (masked image)
-#         # -------------
-#         masked_image = image * mask  # broadcast: (B,3,H,W) * (B,1,H,W)
-#         l_tokens = self.local_encoder.forward_features(masked_image)  # (B, 1+N, D)
-#         l_patch = l_tokens[:, 1:, :]                                  # (B, N, D)
-
-#         # LTS: soft weighting
-#         l_weighted, patch_weight = self.lts(mask, l_patch)  # (B,N,D), (B,N)
-
-#         # Cross-attention: weighted local tokens → queries
-#         z = self.cross_attn(
-#             q_list=[l_weighted[b] for b in range(l_weighted.size(0))],
-#             kv_tokens=g_patch
-# )
-
-#         f_local = []
-#         for b in range(len(z)):
-#             w = patch_weight[b].unsqueeze(-1)  # (N,1)
-#             z_b = z[b]
-
-#             pooled = (z_b * w).sum(dim=0) / (w.sum() + 1e-6)
-#             f_local.append(pooled)
-
-#         f_local = torch.stack(f_local, dim=0)  # (B,D)
-
-#         # -------------
-#         # Fusion + classifier
-#         # -------------
-#         logits = self.head(f_global, f_local)
-
-#         # (선택) 디버깅/시각화를 위해 중간값을 함께 반환하고 싶다면 dict로 반환하도록 변경 가능
-#         return logits
