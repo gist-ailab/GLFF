@@ -9,9 +9,7 @@ import timm
 import numpy as np
 import torch.nn.functional as F
 
-# 사용자 정의 모듈 (파일이 동일 경로에 있어야 함)
-from net_hard import GlobalLocalLesionClassifier
-import rein
+from cufit_model import create_glff_model
 import dino_variant
 from data.ham10000_seg import get_dataloaders_with_mask
 from util import read_conf
@@ -52,35 +50,8 @@ def train():
     hub_model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14')
     dino_sd = hub_model.state_dict()
 
-    def create_glff_model():
-            g_enc = rein.ReinsDinoVisionTransformer(**variant)
-            l_enc = rein.ReinsDinoVisionTransformer(**variant)
-            g_enc.load_state_dict(dino_sd, strict=False)
-            l_enc.load_state_dict(dino_sd, strict=False)
-            
-            model = GlobalLocalLesionClassifier(
-                global_encoder=g_enc,
-                local_encoder=l_enc,
-                embed_dim=variant['embed_dim'], # 384,
-                num_classes=config['num_classes'],
-                patch_size=variant['patch_size'],   
-                tau=0.000,
-                min_tokens=4,
-                num_heads=8,
-                cross_attn_layers=1,
-                fusion="concat",        # "concat" or "gate"
-                hidden_dim=512,   # 256?
-                # dropout=0.2,
-                cross_attn_warmup_epochs=5,
-                use_global_cls=True
-            )
-            
-            set_requires_grad(model, ['reins', 'head', 'cross_attn', 'global_encoder', 'local_encoder'])    
-            
-            return model.to(device)
-
-    model_iam = create_glff_model() 
-    model_lam = create_glff_model() 
+    model_iam = create_glff_model(variant, dino_sd, config['num_classes'], device)
+    model_lam = create_glff_model(variant, dino_sd, config['num_classes'], device)
     # LPM은 가장 안정적인 global_encoder의 출력(embed_dim)을 입력으로 받음
     lpm_linear = nn.Linear(variant['embed_dim'], config['num_classes']).to(device) 
 
