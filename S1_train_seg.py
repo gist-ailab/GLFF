@@ -18,48 +18,14 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 
 import S1_models
 import S1_utils
-
-
-# -------------------------
-# Seed
-# -------------------------
-def seed_all(seed: int):
-    random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-
-# -------------------------
-# DDP setup (single / ddp auto)
-# -------------------------
-def ddp_setup():
-    """
-    Single GPU:
-      python train_ham10000.py ...
-
-    Multi GPU:
-      torchrun --nproc_per_node=NUM_GPUS train_ham10000.py ...
-    """
-    if "RANK" in os.environ and "WORLD_SIZE" in os.environ and "LOCAL_RANK" in os.environ:
-        dist.init_process_group(backend="nccl", init_method="env://")
-        rank = int(os.environ["RANK"])
-        local_rank = int(os.environ["LOCAL_RANK"])
-        world_size = int(os.environ["WORLD_SIZE"])
-        torch.cuda.set_device(local_rank)
-        device = torch.device("cuda", local_rank)
-        is_ddp = True
-    else:
-        rank = 0
-        local_rank = 0
-        world_size = 1
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        is_ddp = False
-
-    return rank, local_rank, world_size, device, is_ddp
-
-
-def is_main_process(rank: int) -> bool:
-    return rank == 0
+from S1_training import (
+    ddp_setup,
+    freeze_encoder_except_prompt,
+    is_main_process,
+    load_sam_ckpt,
+    save_ckpt,
+    seed_all,
+)
 
 
 # -------------------------
@@ -303,29 +269,6 @@ def make_train_loader(
 
 
 # -------------------------
-# Checkpoint load & freeze
-# -------------------------
-def load_sam_ckpt(model, ckpt_path, rank=0):
-    ckpt = torch.load(ckpt_path, map_location="cpu")
-    if isinstance(ckpt, dict) and "model" in ckpt and isinstance(ckpt["model"], dict):
-        state = ckpt["model"]
-    elif isinstance(ckpt, dict):
-        state = ckpt
-    else:
-        state = ckpt
-
-    msg = model.load_state_dict(state, strict=False)
-    if is_main_process(rank):
-        print(f"[CKPT] loaded: missing={len(msg.missing_keys)} unexpected={len(msg.unexpected_keys)}")
-
-
-def freeze_encoder_except_prompt(model):
-    for name, p in model.named_parameters():
-        if "image_encoder" in name and "prompt_generator" not in name:
-            p.requires_grad_(False)
-
-
-# -------------------------
 # Train / Val
 # -------------------------
 def train_one_epoch(train_loader, model, device, is_ddp, rank):
@@ -408,10 +351,6 @@ def validate_one_epoch(val_loader, model, device, is_ddp, rank, eval_type="kvasi
 
     return m1, m2, metric1, metric2
 
-
-def save_ckpt(model, save_dir, name):
-    os.makedirs(save_dir, exist_ok=True)
-    torch.save(model.state_dict(), os.path.join(save_dir, f"model_epoch_{name}.pth"))
 
 # -------------------------F
 # Main
