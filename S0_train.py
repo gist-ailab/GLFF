@@ -1,8 +1,5 @@
 import warnings
 warnings.filterwarnings("ignore", message="xFormers is not available")
-import sys
-# sys.path.append("/SSDe/youmin_park/GLFF/")
-sys.path.append("/home/ailab-lba/ym_workspace/GLFF/")
 import time
 from datetime import timedelta
 

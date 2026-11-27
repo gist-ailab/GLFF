@@ -1,6 +1,4 @@
 import os
-import sys
-sys.path.append("/SSDe/youmin_park/GLFF/")
 
 import argparse
 import torch

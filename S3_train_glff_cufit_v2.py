@@ -1,9 +1,6 @@
 import warnings
 warnings.filterwarnings("ignore", message="xFormers is not available")
 import os
-import sys
-# sys.path.append("/SSDd/youmin_park/GLFF/")
-sys.path.append("/home/ailab-lba/ym_workspace/GLFF/")
 import torch
 import torch.nn as nn
 import argparse

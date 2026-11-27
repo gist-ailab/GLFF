@@ -1,8 +1,6 @@
 import warnings
 warnings.filterwarnings("ignore", message="xFormers is not available")
 import os
-import sys
-sys.path.append("/home/ailab-lba/ym_workspace/GLFF/")
 import time
 from datetime import timedelta
 from tqdm import tqdm
