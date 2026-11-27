@@ -148,10 +148,6 @@ def train():
     if args.adapter == 'lora':
         scalar = GradScaler()
         
-    avg_accuracy = 0.0
-    best_acc = 0.0
-    train_accuracies = []
-    val_accuracies = []
     start_time = time.time()
         
     for epoch in range(max_epoch):
@@ -201,20 +197,13 @@ def train():
 
         ## validation
         model.eval()
-        total_loss = 0
-        total = 0
-        correct = 0
 
         if args.adapter == 'rein' or args.adapter == 'adaptformer':
             valid_accuracy = validation_accuracy(model, test_loader, device, mode=args.adapter)
         elif args.adapter == 'lora':
             valid_accuracy = validation_accuracy_lora(model, test_loader, device)
             
-        train_accuracies.append(train_accuracy)
-        val_accuracies.append(valid_accuracy)
         
-        if epoch >= max_epoch-10:
-            avg_accuracy += valid_accuracy 
         scheduler.step()
 
         saver.save_checkpoint(epoch, metric = valid_accuracy)

@@ -8,7 +8,6 @@ import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
 import torch
 import torch.nn as nn
-from torch.cuda.amp.grad_scaler import GradScaler
 from torch.nn import functional as F
 
 import argparse
@@ -115,35 +114,8 @@ def train():
     
     print(model)
     
-    # print("Max epoch: ", max_epoch)
-    
-    criterion = torch.nn.CrossEntropyLoss()
-    # print("Criterion: ", criterion)
     model.eval()
 
-
-    lr_decay = [int(0.5*max_epoch), int(0.75*max_epoch), int(0.9*max_epoch)]
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay = 1e-5)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay = 1e-6)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, lr_decay)
- 
-    # saver = timm.utils.CheckpointSaver(model, optimizer, checkpoint_dir= save_path, max_history = 1) 
-    saver = timm.utils.CheckpointSaver(
-        model.module if isinstance(model, torch.nn.DataParallel) else model,
-        optimizer,
-        checkpoint_dir=save_path,
-        max_history=1
-    )
-
-    if args.adapter == 'lora':
-        scalar = GradScaler()
-        
-    avg_accuracy = 0.0
-    best_acc = 0.0
-    train_accuracies = []
-    val_accuracies = []
-    start_time = time.time()
-            
     print("Max epoch:", max_epoch)
 
     criterion = nn.CrossEntropyLoss()
@@ -153,13 +125,13 @@ def train():
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, lr_decay)
 
-    # saver = timm.utils.CheckpointSaver(
-    #     model, optimizer, checkpoint_dir=save_path, max_history=1
-    # )
+    saver = timm.utils.CheckpointSaver(
+        model.module if isinstance(model, torch.nn.DataParallel) else model,
+        optimizer,
+        checkpoint_dir=save_path,
+        max_history=1
+    )
 
-    train_accuracies = []
-    val_accuracies = []
-    avg_accuracy = 0.0
 
     start_time = time.time()
 
@@ -216,16 +188,12 @@ def train():
 
         train_avg_loss = total_loss / len(train_loader)
         train_accuracy = train_acc
-        train_accuracies.append(train_accuracy)
 
         # -------------------------
         # Validation
         # -------------------------
         valid_accuracy = validation_accuracy(model, test_loader, device)
-        val_accuracies.append(valid_accuracy)
 
-        if epoch >= max_epoch - 10:
-            avg_accuracy += valid_accuracy
 
         scheduler.step()
         saver.save_checkpoint(epoch, metric=valid_accuracy)

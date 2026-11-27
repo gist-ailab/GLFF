@@ -76,21 +76,6 @@ def train():
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [int(0.5*args.epoch), int(0.75*args.epoch)])
     
     
-    # saver = timm.utils.CheckpointSaver(
-    #     model.module if isinstance(model, torch.nn.DataParallel) else model,
-    #     optimizer,
-    #     checkpoint_dir=save_path,
-    #     max_history=1
-    # )
-    
-    saver = timm.utils.CheckpointSaver(
-        model_lam, optimizer, checkpoint_dir=save_path, max_history=1
-    )
-
-
-
-    # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epoch)
-
     saver = timm.utils.CheckpointSaver(
         model_lam, optimizer, checkpoint_dir=save_path, max_history=1
     )
