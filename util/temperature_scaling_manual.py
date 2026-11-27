@@ -2,14 +2,8 @@ import torch
 from torch import nn, optim
 from torch.nn import functional as F
 import matplotlib.pyplot as plt
+from .forward import rein_forward
 
-
-def rein_forward(model, inputs):
-    output = model.forward_features(inputs)[:, 0, :]
-    output = model.linear(output)
-    output = torch.softmax(output, dim=1)
-
-    return output
 
 class ModelWithTemperature(nn.Module):
     """

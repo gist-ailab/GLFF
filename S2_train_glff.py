@@ -8,7 +8,6 @@ import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,6,7"
 import torch
 import torch.nn as nn
-from torch.cuda.amp.autocast_mode import autocast
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.nn import functional as F
 
@@ -29,25 +28,7 @@ import dino_variant
 from sklearn.metrics import f1_score
 from data.ham10000_seg import get_dataloaders_with_mask
 from data.ham10000_seg_trainset_split import get_dataloaders_train_only
-
-def rein_forward(model, inputs):
-    output = model.forward_features(inputs)[:, 0, :]
-    output = model.linear(output)
-    output = torch.softmax(output, dim=1)
-    return output
-
-def lora_forward(model, inputs):
-    with autocast(enabled=True):
-        features = model.forward_features(inputs)
-        output = model.linear(features)
-        output = torch.softmax(output, dim=1)
-    return output
-
-def adaptformer_forward(model, inputs):
-    f = model.forward_features(inputs)
-    outputs = model.linear(f)
-    outputs = torch.softmax(outputs, dim=1) 
-    return outputs
+from util.forward import rein_forward, lora_forward, adaptformer_forward
 
 
 def seed_for_init(seed=42):

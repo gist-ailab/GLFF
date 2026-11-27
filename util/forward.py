@@ -1,4 +1,5 @@
-
+import torch
+from torch.cuda.amp.autocast_mode import autocast
 
 
 def rein_forward(model, inputs):
@@ -17,5 +18,5 @@ def lora_forward(model, inputs):
 def adaptformer_forward(model, inputs):
     f = model.forward_features(inputs)
     outputs = model.linear(f)
-    outputs = torch.softmax(outputs, dim=1) 
+    outputs = torch.softmax(outputs, dim=1)
     return outputs

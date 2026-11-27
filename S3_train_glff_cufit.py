@@ -16,13 +16,8 @@ import dino_variant
 from data.ham10000_seg import get_dataloaders_with_mask
 from util import read_conf
 from util.metric_seg import validation_accuracy
+from util.forward import rein_forward
 
-
-def rein_forward(model, inputs):
-    output = model.forward_features(inputs)[:, 0, :]
-    output = model.linear(output)
-    output = torch.softmax(output, dim=1)
-    return output
 
 def set_requires_grad(model, layers_to_train):
     for name, param in model.named_parameters():
