@@ -172,6 +172,7 @@ def load_cls_model(args, ckpt_path, device):
 @torch.no_grad()
 def run_inference(seg_model, cls_model, loader, device, save_overlay_dir=None):
     preds, labels = [], []
+    img_counter = 0
 
     for images, _, gt in tqdm(loader, desc="Inference", ncols=100):
         images = images.to(device)
@@ -180,7 +181,6 @@ def run_inference(seg_model, cls_model, loader, device, save_overlay_dir=None):
         masks = seg_model(images)              # ← SAM 추론
         logits = cls_model(images, masks)      # ← 기존 모델 그대로
         
-        img_counter = 0
         # 🔹 overlay 저장
         if save_overlay_dir is not None:
             save_overlay_batch(
