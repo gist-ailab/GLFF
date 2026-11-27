@@ -17,14 +17,8 @@ from data.ham10000_seg import get_dataloaders_with_mask
 from util import read_conf
 from util.metric_seg import validation_accuracy
 from util.forward import rein_forward
+from util.training import set_requires_grad
 
-
-def set_requires_grad(model, layers_to_train):
-    for name, param in model.named_parameters():
-        if any(layer in name for layer in layers_to_train):
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
 
 def train():
     parser = argparse.ArgumentParser()

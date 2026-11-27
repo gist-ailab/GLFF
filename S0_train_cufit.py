@@ -9,32 +9,18 @@ import torch
 import torch.nn as nn
 import argparse
 import timm
-import numpy as np
 
 import rein
 import dino_variant
 from data.ham10000 import get_dataloaders
 from util import read_conf, validation_accuracy
+from util.training import seed_for_init as seed_everything, set_requires_grad
 
-def seed_everything(seed=42):
-    import random
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-
-def set_requires_grad(model, layers_to_train):
-    for name, param in model.named_parameters():
-        if any(layer in name for layer in layers_to_train):
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
 
 def train():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', '-d', type=str, default='ham10000')
-    parser.add_argument('--netsize', default='s', type=str)
+    parser.add_argument('--netsize', default='s', choices=dino_variant.DINO_VARIANTS)
     parser.add_argument('--noise_rate', type=float, default=0.2)
     parser.add_argument('--epoch', '-e', type=int, default=50)
     parser.add_argument('--save_path', '-s', type=str, default='ham10000_cufit_cls_only')
@@ -57,12 +43,7 @@ def train():
     )
 
     # 2. 기초 모델 가중치 로드
-    if args.netsize == 's':
-        model_load, variant = dino_variant._small_dino, dino_variant._small_variant
-    elif args.netsize == 'b':
-        model_load, variant = dino_variant._base_dino, dino_variant._base_variant
-    else:
-        model_load, variant = dino_variant._large_dino, dino_variant._large_variant
+    model_load, variant = dino_variant.DINO_VARIANTS[args.netsize]
 
     hub_model = torch.hub.load('facebookresearch/dinov2', model_load)
     dino_sd = hub_model.state_dict()

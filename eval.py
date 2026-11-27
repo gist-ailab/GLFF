@@ -3,7 +3,6 @@ import os
 import argparse
 import torch
 import torch.nn as nn
-import numpy as np
 
 from util import read_conf, validation_accuracy, validation_accuracy_lora
 from data.ham10000 import get_dataloaders
@@ -11,17 +10,12 @@ from data.ham10000 import get_dataloaders
 import rein
 import adaptformer
 import dino_variant
+from util.training import seed_for_init
 
 # -------------------------------------------------
 # Utils
 # -------------------------------------------------
-def seed_for_init(seed=42):
-    import random
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
+
 
 def rein_forward(model, inputs):
     backbone = model.module if isinstance(model, torch.nn.DataParallel) else model
@@ -40,7 +34,7 @@ def main():
     parser.add_argument('--adapter', type=str, default='rein',
                         choices=['rein', 'adaptformer', 'lora'])
     parser.add_argument('--netsize', type=str, default='s',
-                        choices=['s', 'b', 'l'])
+                        choices=dino_variant.DINO_VARIANTS)
     parser.add_argument('--ckpt', type=str, default='S0_save/only_rgb_50/last.pth.tar')
     parser.add_argument('--batch_size', type=int, default=128)
     args = parser.parse_args()
@@ -68,15 +62,7 @@ def main():
     # -------------------------------------------------
     # Model definition
     # -------------------------------------------------
-    if args.netsize == 's':
-        model_load = dino_variant._small_dino
-        variant = dino_variant._small_variant
-    elif args.netsize == 'b':
-        model_load = dino_variant._base_dino
-        variant = dino_variant._base_variant
-    else:
-        model_load = dino_variant._large_dino
-        variant = dino_variant._large_variant
+    _, variant = dino_variant.DINO_VARIANTS[args.netsize]
 
     model = rein.ReinsDinoVisionTransformer(**variant)
     model.linear = nn.Linear(variant['embed_dim'], config['num_classes'])

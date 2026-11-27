@@ -79,3 +79,9 @@ _dinov1_variant = dict(
     ffn_bias=True,
     out_indices = [7, 11, 14, 17]
 )
+
+DINO_VARIANTS = {
+    "s": (_small_dino, _small_variant),
+    "b": (_base_dino, _base_variant),
+    "l": (_large_dino, _large_variant),
+}

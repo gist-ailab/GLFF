@@ -17,11 +17,9 @@ from torch.utils.data.distributed import DistributedSampler
 import argparse
 from tqdm import tqdm
 import timm
-import numpy as np
 import matplotlib.pyplot as plt
 from util import read_conf, validation_accuracy, validation_accuracy_lora
 
-import random
 import rein
 import adaptformer
 
@@ -29,6 +27,7 @@ import dino_variant
 from sklearn.metrics import f1_score
 from data.ham10000 import get_dataloaders
 from data.ham10000_train_split import get_cls_dataloaders_train_only
+from util.training import seed_for_init, set_requires_grad
 
 
 def ddp_setup():
@@ -48,20 +47,6 @@ def rein_forward(model, inputs):
     return logits
 
 
-def seed_for_init(seed=42):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-
-def set_requires_grad(model, layers_to_train):
-    for name, param in model.named_parameters():
-        if any(layer in name for layer in layers_to_train):
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
-            
 def train():
     seed_for_init(42)
     
@@ -69,7 +54,7 @@ def train():
     parser.add_argument('--data', '-d', type=str, default='ham10000')
     parser.add_argument('--adapter', '-a', type=str, default='rein')
     # parser.add_argument('--gpu', '-g', default = '0', type=str)
-    parser.add_argument('--netsize', default='s', type=str)
+    parser.add_argument('--netsize', default='s', choices=dino_variant.DINO_VARIANTS)
     parser.add_argument('--save_path', '-s', type=str, default='ham10000')
     parser.add_argument('--epoch', '-e', type=str, default=50)
     parser.add_argument('--noise_rate', type=float, default=0.0, help='Label noise rate (0.0~1.0)')
@@ -123,15 +108,7 @@ def train():
 
     os.makedirs(save_path, exist_ok=True)
         
-    if args.netsize == 's':
-        model_load = dino_variant._small_dino
-        variant = dino_variant._small_variant
-    elif args.netsize == 'b':
-        model_load = dino_variant._base_dino
-        variant = dino_variant._base_variant
-    elif args.netsize == 'l':
-        model_load = dino_variant._large_dino
-        variant = dino_variant._large_variant
+    model_load, variant = dino_variant.DINO_VARIANTS[args.netsize]
     
     model = torch.hub.load('facebookresearch/dinov2', model_load)
     dino_state_dict = model.state_dict()
