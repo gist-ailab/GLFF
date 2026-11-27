@@ -3,9 +3,12 @@ import random
 import time
 import pandas as pd
 import torch
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
+from torch.utils.data import Dataset, DataLoader, random_split
 from PIL import Image
+if __package__:
+    from .ham10000_seg import get_transforms
+else:
+    from ham10000_seg import get_transforms
 
 class HAM10000WithMaskDataset(Dataset):
     def __init__(
@@ -83,45 +86,7 @@ class HAM10000WithMaskDataset(Dataset):
 
         return image, mask, label
 
-def get_transforms(train=True):
-    if train:
-        image_transform = transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomCrop((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-        ])
 
-        mask_transform = transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.RandomCrop((224, 224)),
-            transforms.ToTensor()  # [0,1]
-        ])
-
-    else:
-        image_transform = transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.CenterCrop((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-        ])
-
-        mask_transform = transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.CenterCrop((224, 224)),
-            transforms.ToTensor()
-        ])
-
-    return image_transform, mask_transform
-
-from torch.utils.data import random_split
 
 def get_dataloaders_train_only(
     data_dir,
