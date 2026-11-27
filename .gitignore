@@ -8,3 +8,7 @@ data/*.npz
 S0_save/*
 S1_save/*
 S2_save/*
+
+# Python bytecode
+__pycache__/
+*.pyc
